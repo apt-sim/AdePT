@@ -19,27 +19,27 @@ namespace adept_test {
 // Match the IO field type consumed by AdePT's GeneralMagneticField:
 // an affine transform from world coordinates into a linearly interpolated,
 // strided 3D array storing float3 magnetic-field values.
-using ConstantCovfieInnerBackend =
+using CovfieTestInnerBackend =
     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>;
-using ConstantCovfieBackend = covfie::backend::affine<covfie::backend::linear<ConstantCovfieInnerBackend>>;
-using ConstantCovfieField   = covfie::field<ConstantCovfieBackend>;
+using CovfieTestBackend = covfie::backend::affine<covfie::backend::linear<CovfieTestInnerBackend>>;
+using CovfieTestField   = covfie::field<CovfieTestBackend>;
 
-/// @brief 2x2x2 covfie map over [minExtent, maxExtent] on each axis.
+/// @brief Sampled covfie map over [minExtent, maxExtent] on each axis.
 /// @param value Callable giving the field (std::array<float, 3>) at sample indices (x, y, z)
 /// @param minExtent Lower world coordinate of the map on each axis
 /// @param maxExtent Upper world coordinate of the map on each axis
+/// @param samples Grid dimensions along x, y and z (each at least two)
 template <class Value>
-inline ConstantCovfieField MakeSampledCovfieField(Value value, float minExtent = -10000.f, float maxExtent = 10000.f)
+inline CovfieTestField MakeSampledCovfieField(Value value, float minExtent = -10000.f, float maxExtent = 10000.f,
+                                              std::array<std::size_t, 3> samples = {{2, 2, 2}})
 {
-  constexpr std::size_t kSamplesPerAxis = 2;
+  covfie::field<CovfieTestInnerBackend> inner(
+      covfie::make_parameter_pack(CovfieTestInnerBackend::configuration_t{samples[0], samples[1], samples[2]}));
+  covfie::field<CovfieTestInnerBackend>::view_t innerView(inner);
 
-  covfie::field<ConstantCovfieInnerBackend> inner(covfie::make_parameter_pack(
-      ConstantCovfieInnerBackend::configuration_t{kSamplesPerAxis, kSamplesPerAxis, kSamplesPerAxis}));
-  covfie::field<ConstantCovfieInnerBackend>::view_t innerView(inner);
-
-  for (std::size_t x = 0; x < kSamplesPerAxis; ++x) {
-    for (std::size_t y = 0; y < kSamplesPerAxis; ++y) {
-      for (std::size_t z = 0; z < kSamplesPerAxis; ++z) {
+  for (std::size_t x = 0; x < samples[0]; ++x) {
+    for (std::size_t y = 0; y < samples[1]; ++y) {
+      for (std::size_t z = 0; z < samples[2]; ++z) {
         const std::array<float, 3> v = value(x, y, z);
         innerView.at(x, y, z)        = {v[0], v[1], v[2]};
       }
@@ -47,34 +47,40 @@ inline ConstantCovfieField MakeSampledCovfieField(Value value, float minExtent =
   }
 
   // Convert world coordinates in [minExtent, maxExtent] along each axis into
-  // the index range [0, kSamplesPerAxis - 1] used by the strided backend.
+  // each axis's index range [0, samples[axis] - 1] used by the strided backend.
   // Values outside the range are clamped by the CPU-side Covfie wrapper used
   // in MagneticFields.hh; the GPU texture backend also clamps accesses.
   const auto translation = covfie::algebra::affine<3>::translation(-minExtent, -minExtent, -minExtent);
-  const auto scale       = static_cast<float>(kSamplesPerAxis - 1) / (maxExtent - minExtent);
-  const auto scaling     = covfie::algebra::affine<3>::scaling(scale, scale, scale);
+  const auto scaleX      = static_cast<float>(samples[0] - 1) / (maxExtent - minExtent);
+  const auto scaleY      = static_cast<float>(samples[1] - 1) / (maxExtent - minExtent);
+  const auto scaleZ      = static_cast<float>(samples[2] - 1) / (maxExtent - minExtent);
+  const auto scaling     = covfie::algebra::affine<3>::scaling(scaleX, scaleY, scaleZ);
 
-  return ConstantCovfieField(covfie::make_parameter_pack(ConstantCovfieBackend::configuration_t(scaling * translation),
-                                                         ConstantCovfieBackend::backend_t::configuration_t{},
-                                                         std::move(inner.backend())));
+  return CovfieTestField(covfie::make_parameter_pack(CovfieTestBackend::configuration_t(scaling * translation),
+                                                     CovfieTestBackend::backend_t::configuration_t{},
+                                                     std::move(inner.backend())));
 }
 
 /// @brief 2x2x2 covfie map with the same field value at every sample, so constant everywhere.
-inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &fieldValue, float minExtent = -10000.f,
-                                                   float maxExtent = 10000.f)
+inline CovfieTestField MakeConstantCovfieField(const std::array<float, 3> &fieldValue, float minExtent = -10000.f,
+                                               float maxExtent = 10000.f)
 {
   // Every sample has the same value, so interpolation anywhere represents a constant field
   return MakeSampledCovfieField([&](std::size_t, std::size_t, std::size_t) { return fieldValue; }, minExtent,
                                 maxExtent);
 }
 
-/// @brief Write a map with Bz rising along x: 0 at x = -10000, bz at x = 10000.
+/// @brief Write a 2x3x5 map over [-10000, 10000] with Bx, By and Bz rising along x, y and z.
 /// @param output Stream receiving the covfie dump
-/// @param bz Field value at the upper x edge
-inline void WriteXGradientCovfieField(std::ostream &output, float bz)
+/// @param fieldScale Field increase per grid index; upper edge values are fieldScale * (1, 2, 4)
+inline void WriteGradientCovfieField(std::ostream &output, float fieldScale)
 {
+  // Unequal dimensions expose axis-index mistakes. Power-of-two index ranges keep the midpoint values exact.
   auto field = MakeSampledCovfieField(
-      [&](std::size_t x, std::size_t, std::size_t) { return std::array<float, 3>{{0.f, 0.f, bz * x}}; });
+      [&](std::size_t x, std::size_t y, std::size_t z) {
+        return std::array<float, 3>{{fieldScale * x, fieldScale * y, fieldScale * z}};
+      },
+      -10000.f, 10000.f, {{2, 3, 5}});
   field.dump(output);
 }
 

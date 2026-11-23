@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ConstantCovfieField.hh"
+#include "CovfieTestField.hh"
 
 #include <G4SystemOfUnits.hh>
 

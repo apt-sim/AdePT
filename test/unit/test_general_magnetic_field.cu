@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ConstantCovfieField.hh"
+#include "CovfieTestField.hh"
 
 #include <AdePT/transport/support/Portability.hh>
 
@@ -50,13 +50,21 @@ __global__ void EvaluateFieldKernel(const GeneralMagneticField *generalField, Un
   }
 }
 
-constexpr int kNumGradientPoints = 5;
+constexpr int kNumGradientCoordinates = 6;
+constexpr int kNumGradientValues      = 3 * kNumGradientCoordinates * kNumComponents;
 
-__global__ void EvaluateGradientKernel(const GeneralMagneticField *field, float *bz)
+__global__ void EvaluateGradientKernel(const GeneralMagneticField *field, float *values)
 {
-  const float xs[kNumGradientPoints] = {-20000.f, -10000.f, 0.f, 10000.f, 20000.f};
-  for (int i = 0; i < kNumGradientPoints; ++i)
-    bz[i] = field->Evaluate(vecgeom::Vector3D<float>(xs[i], 0.f, 0.f))[2];
+  const float coordinates[kNumGradientCoordinates] = {-40000.f, -20000.f, -10000.f, 0.f, 10000.f, 20000.f};
+  for (int axis = 0; axis < 3; ++axis) {
+    for (int i = 0; i < kNumGradientCoordinates; ++i) {
+      vecgeom::Vector3D<float> point(0.f, 0.f, 0.f);
+      point[axis]      = coordinates[i];
+      const auto value = field->Evaluate(point);
+      for (int component = 0; component < kNumComponents; ++component)
+        values[(axis * kNumGradientCoordinates + i) * kNumComponents + component] = value[component];
+    }
+  }
 }
 
 } // namespace
@@ -116,36 +124,44 @@ int main()
     }
   }
 
-  // Field rising along x from 0 to bz over [-10000, 10000]: the device field takes the edge value outside the map
-  const float bz          = 1.f / 1024.f;
+  // Match the independent CPU expectations for each component on the unequal-dimension map.
+  const float fieldScale  = 1.f / 1024.f;
   const auto gradientPath = MakeTempFieldPath();
   {
     std::ofstream output(gradientPath, std::ofstream::binary);
-    adept_test::WriteXGradientCovfieField(output, bz);
+    adept_test::WriteGradientCovfieField(output, fieldScale);
   }
   GeneralMagneticField hostGradient;
   const bool loaded = hostGradient.InitializeFromFile(gradientPath.string());
   std::filesystem::remove(gradientPath);
   if (!loaded) return 1;
 
-  float bzValues[kNumGradientPoints] = {};
-  float *deviceBz                    = nullptr;
+  float gradientValues[kNumGradientValues] = {};
+  float *deviceGradient                    = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&deviceField, sizeof(GeneralMagneticField)));
   ADEPT_DEVICE_API_CALL(
       Memcpy(deviceField, &hostGradient, sizeof(GeneralMagneticField), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
-  ADEPT_DEVICE_API_CALL(Malloc(&deviceBz, sizeof(bzValues)));
-  EvaluateGradientKernel<<<1, 1>>>(deviceField, deviceBz);
+  ADEPT_DEVICE_API_CALL(Malloc(&deviceGradient, sizeof(gradientValues)));
+  EvaluateGradientKernel<<<1, 1>>>(deviceField, deviceGradient);
   ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  ADEPT_DEVICE_API_CALL(Memcpy(bzValues, deviceBz, sizeof(bzValues), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
-  ADEPT_DEVICE_API_CALL(Free(deviceBz));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(gradientValues, deviceGradient, sizeof(gradientValues), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Free(deviceGradient));
   ADEPT_DEVICE_API_CALL(Free(deviceField));
 
-  const float expected[kNumGradientPoints] = {0.f, 0.f, 0.5f * bz, bz, bz};
-  for (int i = 0; i < kNumGradientPoints; ++i) {
-    if (bzValues[i] != expected[i]) {
-      std::cerr << "Gradient device field at point " << i << ": Bz=" << bzValues[i] << ", expected " << expected[i]
-                << "\n";
-      return 1;
+  const float fractions[kNumGradientCoordinates] = {0.f, 0.f, 0.f, 0.5f, 1.f, 1.f};
+  const float upperField[kNumComponents]         = {fieldScale, 2.f * fieldScale, 4.f * fieldScale};
+  for (int axis = 0; axis < 3; ++axis) {
+    for (int i = 0; i < kNumGradientCoordinates; ++i) {
+      for (int component = 0; component < kNumComponents; ++component) {
+        const float expected = upperField[component] * (component == axis ? fractions[i] : 0.5f);
+        const auto value     = gradientValues[(axis * kNumGradientCoordinates + i) * kNumComponents + component];
+        if (value != expected) {
+          std::cerr << "Gradient device field on axis " << axis << " at point " << i << ", component " << component
+                    << ": " << value << ", expected " << expected << "\n";
+          return 1;
+        }
+      }
     }
   }
 
