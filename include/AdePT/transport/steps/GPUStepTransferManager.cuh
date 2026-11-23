@@ -243,8 +243,8 @@ public:
     result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&step_count, sizeof(unsigned int) * numDeviceStepCounts);
     if (result != ADEPT_DEVICE_API_SYMBOL(Success))
       throwAllocationError("GPU step buffer counters", numDeviceStepCounts, sizeof(unsigned int));
-    ADEPT_DEVICE_API_CALL(Memset(step_count, 0, sizeof(unsigned int) * numDeviceStepCounts));
     fGPUStepBufferCount_dev.reset(step_count);
+    ADEPT_DEVICE_API_CALL(Memset(step_count, 0, sizeof(unsigned int) * numDeviceStepCounts));
 
     fDeviceState[0] = DeviceState::Filling;
     fDeviceState[1] = DeviceState::Free;
