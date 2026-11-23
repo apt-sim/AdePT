@@ -238,6 +238,8 @@ endif()
 set(VecCore_VERSION 0.5.2)
 if(ADEPT_USE_CUDA)
   set(VecCore_BACKEND CUDA)
+else()
+  set(VecCore_BACKEND "")
 endif()
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
@@ -731,6 +733,7 @@ endif()
 ####################################################################################################
 
 include(CMakePackageConfigHelpers)
+string(TOLOWER "${ADEPT_COMPUTE_BACKEND}" ADEPT_G4HEPEM_BACKEND)
 #Generate the configuration file from the template and save it to the build directory
 configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
   "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"

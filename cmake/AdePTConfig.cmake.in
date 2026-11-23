@@ -17,15 +17,15 @@ SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
 include(CMakeFindDependencyMacro)
 
 set(VecCore_VERSION 0.5.2)
-set(VecCore_BACKEND CUDA)
+set(VecCore_BACKEND @VecCore_BACKEND@)
 find_dependency(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 
 find_dependency(VecGeom @ADEPT_VECGEOM_MIN_VERSION@ REQUIRED)
 
 find_package(G4HepEm)
 if(G4HepEm_FOUND)
-  if(NOT G4HepEm_cuda_FOUND)
-    message(FATAL_ERROR "AdePT needs G4HepEm to be compiled with CUDA support (-DG4HepEm_CUDA_BUILD=ON)")
+  if(NOT G4HepEm_@ADEPT_G4HEPEM_BACKEND@_FOUND)
+    message(FATAL_ERROR "AdePT needs G4HepEm to be compiled with @ADEPT_COMPUTE_BACKEND@ support (-DG4HepEm_@ADEPT_COMPUTE_BACKEND@_BUILD=ON)")
   endif()
   message(STATUS "G4HepEm Found ${G4HepEm_INCLUDE_DIR}")
 endif()
