@@ -28,7 +28,7 @@
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------
-/detector/setField 0 0 0 tesla
+# No field by default. Uniform-field commands require ADEPT_USE_EXT_BFIELD=OFF.
 #/detector/setField 0 0 3.8 tesla
 
 ## -----------------------------------------------------------------------------

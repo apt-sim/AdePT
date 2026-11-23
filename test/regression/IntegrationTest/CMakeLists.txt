@@ -79,3 +79,10 @@ endif()
 
 # Scripts
 # configure_file("macros/integrationtest.mac.in" "${CMAKE_BINARY_DIR}/integrationtest.mac")
+
+# Validate supported and unsupported field commands without initializing transport.
+add_test(NAME integrationTest-field-ui
+  COMMAND ${CMAKE_COMMAND} -DAPPLICATION=$<TARGET_FILE:integrationTest> -DEXT_BFIELD=${ADEPT_USE_EXT_BFIELD}
+          -P ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_field_ui_commands.cmake
+)
+set_tests_properties(integrationTest-field-ui PROPERTIES LABELS unit TIMEOUT 120)

@@ -81,3 +81,10 @@ if(NOT ADEPT_USE_EXT_BFIELD)
   )
   set_tests_properties(example1-handoff PROPERTIES LABELS validation)
 endif()
+
+# Validate supported and unsupported field commands without initializing transport.
+add_test(NAME example1-field-ui
+  COMMAND ${CMAKE_COMMAND} -DAPPLICATION=$<TARGET_FILE:example1> -DEXT_BFIELD=${ADEPT_USE_EXT_BFIELD}
+          -P ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_field_ui_commands.cmake
+)
+set_tests_properties(example1-field-ui PROPERTIES LABELS unit TIMEOUT 120)
