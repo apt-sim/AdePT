@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ConstantCovfieField.hh"
+#include "CovfieTestField.hh"
 #include "MagneticFields.hh"
 
 #include <G4SystemOfUnits.hh>
@@ -62,5 +62,33 @@ int main()
   }
 
   std::filesystem::remove(fieldPath);
+
+  // Independent component gradients on unequal grid dimensions test each axis and its own clamp limits.
+  const float fieldScale = 1.f / 1024.f;
+  {
+    std::ofstream output(fieldPath, std::ofstream::binary);
+    adept_test::WriteGradientCovfieField(output, fieldScale);
+  }
+  CovfieField gradient(fieldPath.string());
+  std::filesystem::remove(fieldPath);
+  const double coordinates[] = {-40000., -20000., -10000., 0., 10000., 20000.};
+  const double fractions[]   = {0., 0., 0., 0.5, 1., 1.};
+  const double upperField[]  = {fieldScale, 2. * fieldScale, 4. * fieldScale};
+  for (int axis = 0; axis < 3; ++axis) {
+    for (int i = 0; i < 6; ++i) {
+      G4double point[4] = {0., 0., 0., 0.};
+      point[axis]       = coordinates[i];
+      G4double value[3] = {-1., -1., -1.};
+      gradient.GetFieldValue(point, value);
+      for (int component = 0; component < 3; ++component) {
+        const double expected = upperField[component] * (component == axis ? fractions[i] : 0.5);
+        if (value[component] != expected) {
+          std::cerr << "Gradient CovfieField on axis " << axis << " at " << coordinates[i] << ", component "
+                    << component << ": " << value[component] << ", expected " << expected << "\n";
+          return 1;
+        }
+      }
+    }
+  }
   return 0;
 }
