@@ -561,6 +561,16 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));
 }
 
+void FreeVolAuxArrayOnDevice(adeptint::VolAuxData *auxDataDev)
+{
+  if (auxDataDev) ADEPT_DEVICE_API_CALL(Free(auxDataDev));
+}
+
+void SynchronizeDevice()
+{
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
+}
+
 void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)
 {
   if (dev.d_roots) {
@@ -797,7 +807,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                    int adeptSeed, int debugLevel, TransportKernelOptions kernelOptions,
                    adept::SteppingActionParamsT steppingActionParams, unsigned short lastNParticlesOnCPU,
-                   const double stepBufferSafetyFactor, bool hasWDTRegions)
+                   const double stepBufferSafetyFactor, const std::atomic<bool> &hasWDTRegionsFlag)
 {
 
   using InjectState                             = GPUstate::InjectState;
@@ -883,6 +893,9 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
     // boundary, so we must exit explicitly before this current iteration
     // touches the CUDA stream again during teardown.
     if (!gpuState.runTransport) break;
+
+    // Woodcock tracking regions can appear when the physics data are reloaded between runs
+    const bool hasWDTRegions = hasWDTRegionsFlag.load(std::memory_order_acquire);
 
     if (debugLevel > 2) {
       std::cout << "GPU transport starting" << std::endl;
@@ -1524,7 +1537,8 @@ std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel,
                             TransportKernelOptions kernelOptions, adept::SteppingActionParamsT steppingActionParams,
-                            unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor, bool hasWDTRegions)
+                            unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor,
+                            const std::atomic<bool> &hasWDTRegions)
 {
   return std::thread{&TransportLoop,
                      trackCapacity,
@@ -1540,7 +1554,7 @@ std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads,
                      steppingActionParams,
                      lastNParticlesOnCPU,
                      stepBufferSafetyFactor,
-                     hasWDTRegions};
+                     std::cref(hasWDTRegions)};
 }
 
 void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &gpuState,

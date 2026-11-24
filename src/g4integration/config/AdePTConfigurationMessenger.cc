@@ -15,6 +15,8 @@
 #include "G4UIcmdWithADouble.hh"
 #include "G4Tokenizer.hh"
 #include "G4Exception.hh"
+#include "G4StateManager.hh"
+#include "G4UImanager.hh"
 
 namespace {
 void ReportLockedTransportInitializationOption(G4UIcommand *command)
@@ -23,6 +25,26 @@ void ReportLockedTransportInitializationOption(G4UIcommand *command)
   description << command->GetCommandPath()
               << " cannot be changed after AdePT initialization has started. Set it before the first run.";
   command->CommandFailed(description);
+}
+
+// Options read only when the shared transport is created: rejected once it exists, instead of being
+// accepted and silently ignored
+void ReportTransportOptionAfterInitialization(G4UIcommand *command)
+{
+  G4ExceptionDescription description;
+  description << command->GetCommandPath()
+              << " is read when AdePT is initialized (at /run/initialize, or at the first run with G4MTRunManager) "
+                 "and cannot be changed afterwards. Set it before /run/initialize.";
+  command->CommandFailed(description);
+}
+
+// Options of G4HepEm: after /run/initialize, record the change and ask Geant4 to rebuild the physics tables at the
+// next run, where AdePTTrackingManager applies it on the CPU and reloads the GPU tables
+void RequestPhysicsRebuild(bool &changedAfterInit)
+{
+  if (G4StateManager::GetStateManager()->GetCurrentState() == G4State_PreInit) return;
+  changedAfterInit = true;
+  G4UImanager::GetUIpointer()->ApplyCommand("/run/physicsModified");
 }
 } // namespace
 
@@ -189,6 +211,19 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger() = default;
 
 void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
 {
+  // Transport options without an after-initialization path (the five locked options keep their own report)
+  if (fAdePTConfiguration->TransportInitializationOptionsAreLocked() &&
+      (command == fSetAdePTSeedCmd.get() || command == fSetMillionsOfTrackSlotsCmd.get() ||
+       command == fSetMillionsOfHitSlotsCmd.get() || command == fSetHitBufferFlushThresholdCmd.get() ||
+       command == fSetCPUCapacityFactorCmd.get() || command == fSetHitBufferSafetyFactorCmd.get() ||
+       command == fSetCUDAStackLimitCmd.get() || command == fSetCUDAHeapLimitCmd.get() ||
+       command == fSetSpeedOfLightCmd.get() || command == fSetGDMLCmd.get() || command == fSetCovfieFileCmd.get() ||
+       command == fSetFinishOnCpuCmd.get() || command == fSetMaxChargedLooperCountCmd.get() ||
+       command == fSetMaxWDTIterCmd.get())) {
+    ReportTransportOptionAfterInitialization(command);
+    return;
+  }
+  auto &changedAfterInit = fAdePTConfiguration->GetHepEmOptionsChangedAfterInit();
 
   if (command == fSetTrackInAllRegionsCmd.get()) {
     if (!fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue))) {
@@ -215,14 +250,17 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   } else if (command == fSetMultipleStepsInMSCWithTransportationCmd.get()) {
     fAdePTConfiguration->SetMultipleStepsInMSCWithTransportation(
         fSetMultipleStepsInMSCWithTransportationCmd->GetNewBoolValue(newValue));
+    RequestPhysicsRebuild(changedAfterInit.multipleStepsInMSCWithTransportation);
   } else if (command == fSetEnergyLossFluctuationCmd.get()) {
     fAdePTConfiguration->SetEnergyLossFluctuation(fSetEnergyLossFluctuationCmd->GetNewBoolValue(newValue));
+    RequestPhysicsRebuild(changedAfterInit.energyLossFluctuation);
   } else if (command == fAddRegionCmd.get()) {
     if (!fAdePTConfiguration->AddGPURegionName(newValue)) {
       ReportLockedTransportInitializationOption(command);
     }
   } else if (command == fAddWDTRegionCmd.get()) {
     fAdePTConfiguration->AddWDTRegionName(newValue);
+    RequestPhysicsRebuild(changedAfterInit.wdtRegions);
   } else if (command == fRemoveRegionCmd.get()) {
     if (!fAdePTConfiguration->RemoveGPURegionName(newValue)) {
       ReportLockedTransportInitializationOption(command);
@@ -262,6 +300,7 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetMaxWDTIter(fSetMaxWDTIterCmd->GetNewIntValue(newValue));
   } else if (command == fSetWDTKineticEnergyLimitCmd.get()) {
     fAdePTConfiguration->SetWDTKineticEnergyLimit(fSetWDTKineticEnergyLimitCmd->GetNewDoubleValue(newValue));
+    RequestPhysicsRebuild(changedAfterInit.wdtKineticEnergyLimit);
   }
 }
 

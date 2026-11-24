@@ -18,6 +18,7 @@
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <memory>
@@ -53,9 +54,9 @@ private:
   std::condition_variable fCV_G4Workers;               ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                         ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates;   ///< State machine for each G4 worker
-  bool fHasWDTRegions = false;
-  TransportKernelOptions fKernelOptions{}; // Runtime options copied into transport kernels.
-  std::string fBfieldFile{""};             ///< Path to magnetic field file (in the covfie format)
+  std::atomic<bool> fHasWDTRegions{false};             ///< read by the GPU worker at the start of each transport cycle
+  TransportKernelOptions fKernelOptions{};             // Runtime options copied into transport kernels.
+  std::string fBfieldFile{""};                         ///< Path to magnetic field file (in the covfie format)
   double fCPUCapacityFactor{
       2.5}; ///< Factor by which the host step buffer is larger than the device step buffer. Must be at least 2
   ///< Filling fraction of the host step buffer when the steps are copied out and not taken directly by the G4 workers
@@ -85,6 +86,14 @@ public:
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
                 bool hasHostData = false, bool gammaRussianRouletteApplicable = true);
   int GetDebugLevel() const { return fDebugLevel; }
+  /// @brief Replace the physics data on the device after Geant4 rebuilt its physics tables (new cuts).
+  /// @details
+  /// Must be called between runs, when no event is in flight: the GPU worker is then idle. The new G4HepEm
+  /// tables, `VolAuxData` and WDT metadata are uploaded, the constant-memory views are pointed to them and the
+  /// previous device copies are freed. Woodcock tracking regions may appear (the GPU worker reads their presence
+  /// at the start of each transport cycle).
+  void ReloadPhysics(std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+                     std::unique_ptr<adeptint::VolAuxData[]> auxData, const adeptint::WDTHostPacked &wdtPacked);
   /// @brief Handle the currently available returned GPU-step batches for one thread and event.
   /// @details
   /// Transport retains ownership of the step-buffer lifetime. For each available

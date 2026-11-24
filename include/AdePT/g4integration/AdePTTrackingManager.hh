@@ -76,6 +76,29 @@ private:
   /// corresponding one-time device initialization and upload.
   void InitializeSharedAdePTTransport();
 
+  /// @brief Bring the physics data of the shared transport up to date after Geant4 rebuilt its physics tables.
+  /// @details
+  /// Geant4 rebuilds the physics tables at the start of a run when the production cuts or the physics were
+  /// modified after `/run/initialize` (e.g. `/run/setCut` between two runs). The CPU G4HepEm tables follow,
+  /// but the GPU tables were built once, when the shared transport was created. The first worker that gets
+  /// here after a rebuild prepares a new `AdePTG4HepEmState`, `VolAuxData` (whose material-cuts indices may
+  /// change) and WDT metadata, and hands them to the transport, which replaces the device copies. The other
+  /// workers wait for it and then skip the reload of the same generation.
+  void ReloadSharedAdePTPhysics();
+
+  /// @brief Host-side inputs of the transport that depend on the physics tables.
+  struct PhysicsInputs {
+    std::unique_ptr<adept::transport::AdePTG4HepEmState> hepEmState;
+    std::unique_ptr<adeptint::VolAuxData[]> auxData;
+    adeptint::WDTHostPacked wdtPacked;
+  };
+
+  /// @brief Build the G4HepEm state, `VolAuxData` and packed WDT metadata from the current Geant4 tables.
+  PhysicsInputs PreparePhysicsInputs(bool checkGeometry);
+
+  /// @brief Copy the G4HepEm options changed by UI commands after `/run/initialize` into the G4HepEm configuration.
+  void ApplyHepEmOptionsChangedAfterInit();
+
   /// @brief Set up the regions handled by AdePT.
   /// In track-all mode, regions named with `removeGPURegion` are left out.
   void InitializeGPURegions();
@@ -99,6 +122,8 @@ private:
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
+  int fPendingPhysicsBuilds{0};       ///< Tables prepared but not yet built in a rebuild after the initialization
+  unsigned int fPhysicsGeneration{0}; ///< Physics generation of the shared transport this worker has seen
   bool fSpeedOfLight{false};
 #ifdef ADEPT_ENABLE_POWER_METER
   bool fPowerMeterRunning{false};
