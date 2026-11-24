@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
 #include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
@@ -27,6 +28,7 @@
 #include <G4SystemOfUnits.hh>
 #include <G4TouchableHistory.hh>
 #include <G4Track.hh>
+#include <G4TrackingManager.hh>
 #include <G4UserSteppingAction.hh>
 #include <G4VUserDetectorConstruction.hh>
 #include <G4VUserPhysicsList.hh>
@@ -291,6 +293,20 @@ TEST_F(ReturnedTrackBoundary, InteriorFinishOnCPUCompletesNormally)
     ASSERT_NE(track->GetStep(), nullptr);
     EXPECT_EQ(track->GetStep()->GetPostStepPoint()->GetStepStatus(), fWorldBoundary);
   }
+}
+
+TEST_F(ReturnedTrackBoundary, TrajectoryStorageAbortsTheAdePTHandover)
+{
+  // Trajectory storage is not supported with AdePT. The death-test statement runs in a forked child, so the flag it
+  // sets does not leak into the other tests.
+  auto track = MakeInitialTrack(G4Electron::Definition());
+  EXPECT_DEATH(
+      {
+        G4EventManager::GetEventManager()->GetTrackingManager()->SetStoreTrajectory(1);
+        AdePTTrackingManager trackingManager(nullptr);
+        trackingManager.HandOverOneTrack(track.release());
+      },
+      "TrajectoryStorageNotSupported.*AdePTTrackingManager::HandOverOneTrack");
 }
 
 } // namespace

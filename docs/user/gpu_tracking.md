@@ -135,6 +135,7 @@ tracks. This has two key consequences:
 | Per-track state in user code | Store per-track state on the track (e.g. `G4VUserTrackInformation`). | Do not cache mutable per-track state in shared user-action or SD members. | Steps from different tracks can be interleaved, so caches can be invalidated. |
 | Track killing | Implement track-killing decisions on GPU. | Do not attempt to kill tracks from CPU stepping action or sensitive detector code. Do not remove, replace, kill or reweight the GPU-born secondaries of a step; debug builds of AdePT throw an exception if the user stepping action does. | CPU receives reconstructed step snapshots, not active GPU tracks. |
 | Classification logic | Implement immediate classification in GPU stepping logic. | Do not rely on `StackingAction` for GPU classification. | GPU transport processes secondaries immediately; there is no GPU `StackingAction` stage. |
+| Trajectories | Record MC truth from `G4Step`/`G4Track` data, with per-track state in `G4VUserTrackInformation`. | Do not enable trajectory storage (`/tracking/storeTrajectory`, `/vis/scene/add/trajectories`, `SetStoreTrajectory()` in user tracking actions); AdePT aborts with `TrajectoryStorageNotSupported`. | `G4TrackingManager` holds a single trajectory, which cannot follow tracks transported in parallel on the GPU. |
 
 Note: `G4Trajectory` is currently stored in `G4TrackingManager`, so it is not
 parallel-tracking compatible in this workflow. This requires a Geant4-side fix.

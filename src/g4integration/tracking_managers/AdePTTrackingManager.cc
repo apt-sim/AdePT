@@ -407,6 +407,16 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
+  // G4TrackingManager holds a single trajectory per CPU thread, which cannot follow tracks transported in parallel on
+  // the GPU If a flag was set only in PreUserTrackingAction, it is caught at the next e-/e+/gamma, before a trajectory
+  // from another track can be passed G4HepEm.
+  if (G4EventManager::GetEventManager()->GetTrackingManager()->GetStoreTrajectory() != 0) {
+    G4Exception("AdePTTrackingManager::HandOverOneTrack", "TrajectoryStorageNotSupported", FatalException,
+                "Trajectories are not supported with AdePT. Disable /tracking/storeTrajectory and "
+                "/vis/scene/add/trajectories, and do not call SetStoreTrajectory() in user tracking actions. See "
+                "https://adept-project.readthedocs.io/en/latest/user/gpu_tracking.html");
+  }
+
   if (fGPURegions.empty()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
