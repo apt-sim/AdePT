@@ -341,10 +341,6 @@ else()
     "Geant4_static_FOUND nor Geant4_shared_FOUND is set."
   )
 endif()
-if(ADEPT_USE_HIP)
-  # HIP links the relocatable device code into each executable: AdePT libraries must be static
-  set(_adept_library_type STATIC)
-endif()
 message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset}")
 
 # If both Geant4 STATIC and SHARED are installed, plain Geant4_LIBRARIES still refers to

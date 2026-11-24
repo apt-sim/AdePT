@@ -51,7 +51,8 @@ options as compile definitions; a definition that disagrees with the installatio
 
 Configure with `-DADEPT_COMPUTE_BACKEND=HIP`, the ROCm compiler (`-DCMAKE_CXX_COMPILER=amdclang++
 -DCMAKE_HIP_COMPILER=amdclang++ -DCMAKE_HIP_ARCHITECTURES=<gfx target>`), VecGeom built with `VECGEOM_ENABLE_HIP=ON`
-and G4HepEm built with `G4HepEm_HIP_BUILD=ON`. HIP builds use static libraries.
+and G4HepEm built with `G4HepEm_HIP_BUILD=ON`. The library type follows Geant4, as for CUDA; with shared libraries
+the device code is linked into `libadept_*_final.so`, which host-only clients link or load.
 
 At run time, set `GPU_MAX_HW_QUEUES=8`. HIP maps streams onto this many in-order hardware queues (default 4); with
 fewer queues than the streams the transport uses concurrently, streams wait on each other. On an RX 7900 XTX this gave
