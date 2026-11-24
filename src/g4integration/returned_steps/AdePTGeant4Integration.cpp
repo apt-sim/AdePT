@@ -15,6 +15,7 @@
 #include <G4UniformMagField.hh>
 #include <G4FieldManager.hh>
 #include <G4TouchableHandle.hh>
+#include <G4TrackingManager.hh>
 #include <G4StepStatus.hh>
 #include <G4ReplicaNavigation.hh>
 #include <G4VPVParameterisation.hh>
@@ -356,6 +357,15 @@ void AdePTGeant4Integration_detail::HandoffValidatorDeleter::operator()(HandoffV
 void AdePTGeant4Integration::EnableHandoffValidation()
 {
   fHandoffValidator.reset(new HandoffValidator());
+}
+
+void AdePTGeant4Integration::RejectTrajectoryStorage(const char *origin)
+{
+  if (G4EventManager::GetEventManager()->GetTrackingManager()->GetStoreTrajectory() == 0) return;
+  G4Exception(origin, "TrajectoryStorageNotSupported", FatalException,
+              "Trajectories are not supported with AdePT. Disable /tracking/storeTrajectory and "
+              "/vis/scene/add/trajectories, and do not call SetStoreTrajectory() in user tracking actions. See "
+              "https://adept-project.readthedocs.io/en/latest/user/gpu_tracking.html");
 }
 
 void AdePTGeant4Integration::ValidateHandoff(GPUStep const &parentStep, G4Track const &track)
@@ -860,6 +870,11 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       if (secondary == nullptr) continue;
 
       if (userTrackingAction) userTrackingAction->PreUserTrackingAction(secondary);
+#ifndef NDEBUG
+      // Trajectories are incompatible with parallel transport. Checked only in debug builds, as this runs for every
+      // GPU-born secondary.
+      RejectTrajectoryStorage("AdePTGeant4Integration::ProcessGPUStep");
+#endif
       auto &secTData = fHostTrackDataMapper->get(secondaries[i].fTrackID);
       if (secTData.userTrackInfo == nullptr && secondary->GetUserInformation() != nullptr) {
         secTData.userTrackInfo = secondary->GetUserInformation();

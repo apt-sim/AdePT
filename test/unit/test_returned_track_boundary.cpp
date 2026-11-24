@@ -30,6 +30,7 @@
 #include <G4Track.hh>
 #include <G4TrackingManager.hh>
 #include <G4UserSteppingAction.hh>
+#include <G4UserTrackingAction.hh>
 #include <G4VUserDetectorConstruction.hh>
 #include <G4VUserPhysicsList.hh>
 
@@ -38,6 +39,7 @@
 #include <initializer_list>
 #include <memory>
 #include <span>
+#include <vector>
 
 namespace {
 
@@ -84,6 +86,11 @@ public:
   void UserSteppingAction(G4Step const *) override { ++steps; }
 
   int steps = 0;
+};
+
+class TrajectoryRequestingTrackingAction : public G4UserTrackingAction {
+public:
+  void PreUserTrackingAction(G4Track const *) override { fpTrackingManager->SetStoreTrajectory(1); }
 };
 
 struct ReturnPath {
@@ -307,6 +314,41 @@ TEST_F(ReturnedTrackBoundary, TrajectoryStorageAbortsTheAdePTHandover)
         trackingManager.HandOverOneTrack(track.release());
       },
       "TrajectoryStorageNotSupported.*AdePTTrackingManager::HandOverOneTrack");
+}
+
+TEST_F(ReturnedTrackBoundary, TrajectoryStorageAbortsTheGPUSecondaryTracking)
+{
+#ifdef NDEBUG
+  GTEST_SKIP() << "The trajectory check for GPU-born secondaries runs only in debug builds.";
+#endif
+  // The PreUserTrackingAction of a GPU-born secondary must not enable trajectory storage either.
+  GPUStep parent;
+  parent.fTrackID          = nextTrackID++;
+  parent.fParticleType     = ParticleType::Electron;
+  parent.fStepLimProcessId = 1; // bremsstrahlung
+  parent.fStepCounter      = 1;
+  parent.fHasHostData      = true;
+  parent.fNumSecondaries   = 1;
+  parent.fStepLength       = 1 * mm;
+  parent.fPreStepPoint.fNavigationState.Push(vecgeom::GeoManager::Instance().GetWorld());
+  parent.fPreStepPoint.fPosition          = {2 * mm, 0., 0.};
+  parent.fPreStepPoint.fMomentumDirection = {1., 0., 0.};
+  parent.fPreStepPoint.fEKin              = 10 * MeV;
+  parent.fPostStepPoint                   = parent.fPreStepPoint;
+  GPUStep secondary                       = parent;
+  secondary.fTrackID                      = nextTrackID++;
+  secondary.fParentID                     = parent.fTrackID;
+  secondary.fParticleType                 = ParticleType::Gamma;
+  secondary.fNumSecondaries               = 0;
+  const std::vector<GPUStep> steps{parent, secondary};
+  integration.GetHostTrackDataMapper().create(parent.fTrackID);
+
+  EXPECT_DEATH(
+      {
+        G4EventManager::GetEventManager()->SetUserAction(new TrajectoryRequestingTrackingAction);
+        integration.ProcessGPUStep(std::span<const GPUStep>(steps), false, true, true);
+      },
+      "TrajectoryStorageNotSupported.*AdePTGeant4Integration::ProcessGPUStep");
 }
 
 } // namespace
