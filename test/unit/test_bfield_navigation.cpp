@@ -24,9 +24,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <initializer_list>
+#include <vector>
 
 namespace {
 
@@ -226,15 +228,20 @@ struct BoundaryNavigator {
 
 // Navigator stub with a configurable finite safety and an optional boundary at
 // a fixed distance on a chosen navigation call. Counts safety refreshes and
-// navigation calls so tests can assert how many chords were integrated.
+// navigation calls so tests can assert how many chords were integrated, and
+// records the chords passed to navigation.
 struct FiniteSafetyNavigator {
   static constexpr double kBoundaryPush        = 1.0e-8;
+  static constexpr int kMaxRecordedChords      = 32;
   inline static int safetyCalls                = 0;
   inline static int stepCalls                  = 0;
   inline static double safety                  = 0.0;
   inline static double boundaryDistance        = -1.0; // < 0: never report a boundary
   inline static int boundaryOnCall             = -1;   // 1-based navigation call that reports it
   inline static unsigned long boundaryNavIndex = kDaughterNavIndex;
+  inline static std::array<vecgeom::Vector3D<double>, kMaxRecordedChords> chordStarts{};
+  inline static std::array<vecgeom::Vector3D<double>, kMaxRecordedChords> chordDirections{};
+  inline static std::array<double, kMaxRecordedChords> chordLengths{};
 
   static void Reset(double safetyValue, double boundaryDist, int boundaryCall)
   {
@@ -251,10 +258,16 @@ struct FiniteSafetyNavigator {
     return safety;
   }
 
-  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &, const vecgeom::Vector3D<double> &,
-                                         double step, const vecgeom::NavigationState &currentState,
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
                                          vecgeom::NavigationState &nextState)
   {
+    if (stepCalls < kMaxRecordedChords) {
+      chordStarts[stepCalls]     = position;
+      chordDirections[stepCalls] = direction;
+      chordLengths[stepCalls]    = step;
+    }
     ++stepCalls;
     if (stepCalls == boundaryOnCall && boundaryDistance >= 0.0 && boundaryDistance < step) {
       nextState = MakeState(boundaryNavIndex, true);
@@ -1023,4 +1036,246 @@ TEST(FieldPropagatorRungeKuttaNavigation, KeepsPersistentTinySameStateSeparateFr
   EXPECT_FALSE(propagated);
   EXPECT_TRUE(nextState.HasSamePathAsOther(currentState));
   EXPECT_GE(ScriptedNavigator::stepCalls, 2);
+}
+
+// Chord check outside the geometry safety. There, navigation uses the chord in
+// place of the arc, so, as in Geant4's G4ChordFinder, a chord is accepted while
+// its distance from the arc is below deltaChord, and an arc whose chord is
+// farther away is retried shorter. On the circle of the recording driver the
+// propagator's distance estimate is exact.
+
+namespace {
+
+constexpr double kCircleRadius = RecordingCircularPropagatorDriver::kRadius;
+
+double CircleChordDistanceForArc(double arc)
+{
+  return kCircleRadius * (1.0 - std::cos(0.5 * arc / kCircleRadius));
+}
+
+double CircleChordDistanceForChord(double chord)
+{
+  return kCircleRadius - std::sqrt(kCircleRadius * kCircleRadius - 0.25 * chord * chord);
+}
+
+double CircleArcForChordDistance(double distance)
+{
+  return 2.0 * kCircleRadius * std::acos(1.0 - distance / kCircleRadius);
+}
+
+struct PropagationResult {
+  double moved    = 0.0;
+  bool propagated = false;
+};
+
+// Propagates along the circle of RecordingCircularPropagatorDriver, starting at the origin with the given cached
+// safety. Later safety refreshes return refreshedSafety.
+PropagationResult PropagateOnCircle(double physicsStep, double safeLength, double cachedSafety, double refreshedSafety)
+{
+  using Propagator =
+      fieldPropagatorRungeKutta<DummyField, RecordingCircularPropagatorDriver, double, FiniteSafetyNavigator>;
+  RecordingCircularPropagatorDriver::Reset();
+  FiniteSafetyNavigator::Reset(refreshedSafety, /*boundaryDist=*/-1.0, /*boundaryCall=*/-1);
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  const auto currentState = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, cachedSafety);
+
+  PropagationResult result;
+  result.moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, physicsStep, safeLength, position,
+                                                      direction, currentState, nextState, hitSurfaceIndex,
+                                                      result.propagated, safetyCache, 10, itersDone, 0, false);
+  return result;
+}
+
+} // namespace
+
+// Geant4 accepts any chord closer than deltaChord to its arc. So does the
+// propagator: such an arc is navigated as requested, without a retry.
+TEST(FieldPropagatorRungeKuttaNavigation, AcceptsChordCloserThanDeltaChordToItsArc)
+{
+  const double arc = CircleArcForChordDistance(0.9 * fieldConstants::deltaChord);
+
+  const auto result = PropagateOnCircle(/*physicsStep=*/arc, /*safeLength=*/arc, /*cachedSafety=*/0.0,
+                                        /*refreshedSafety=*/0.0);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_DOUBLE_EQ(result.moved, arc);
+  EXPECT_EQ(RecordingCircularPropagatorDriver::calls, 1u);
+  EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 1);
+}
+
+// An arc whose chord is farther than deltaChord from it is retried from the
+// same start, as in Geant4: the distance grows with the square of the arc
+// length, so the retry requests kChordRetryFraction * arc * sqrt(deltaChord /
+// distance). Only accepted chords reach navigation.
+TEST(FieldPropagatorRungeKuttaNavigation, RetriesArcWhoseChordIsFartherThanDeltaChord)
+{
+  using Driver     = RecordingCircularPropagatorDriver;
+  using Propagator = fieldPropagatorRungeKutta<DummyField, Driver, double, FiniteSafetyNavigator>;
+  const double arc = CircleArcForChordDistance(1.5 * fieldConstants::deltaChord);
+
+  const auto result = PropagateOnCircle(/*physicsStep=*/arc, /*safeLength=*/arc, /*cachedSafety=*/0.0,
+                                        /*refreshedSafety=*/0.0);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_NEAR(result.moved, arc, 1.0e-12);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[0], arc);
+  EXPECT_NEAR(Driver::requestedSteps[1], Propagator::kChordRetryFraction * arc * std::sqrt(1.0 / 1.5), 1.0e-12);
+  EXPECT_LT(CircleChordDistanceForArc(Driver::requestedSteps[1]), fieldConstants::deltaChord);
+  // The retried arc and the rest of the step.
+  EXPECT_EQ(Driver::calls, 3u);
+  ASSERT_EQ(FiniteSafetyNavigator::stepCalls, 2);
+  for (int i = 0; i < FiniteSafetyNavigator::stepCalls; ++i) {
+    EXPECT_LT(CircleChordDistanceForChord(FiniteSafetyNavigator::chordLengths[i]), fieldConstants::deltaChord);
+  }
+}
+
+// Like the first arc, a retry may extend to the geometry safety: an arc within
+// the safety needs neither a chord check nor navigation. Here the 6 mm arc
+// leaves the 4.5 mm safety and its chord is 0.56 mm from it. The shortened arc
+// would be 3.94 mm, so the retry takes the 4.5 mm safety instead.
+TEST(FieldPropagatorRungeKuttaNavigation, RetriesTooCurvedArcAtLongerGeometrySafety)
+{
+  using Driver = RecordingCircularPropagatorDriver;
+
+  const auto result = PropagateOnCircle(/*physicsStep=*/6.0, /*safeLength=*/6.0, /*cachedSafety=*/4.5,
+                                        /*refreshedSafety=*/0.0);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_NEAR(result.moved, 6.0, 1.0e-12);
+  EXPECT_EQ(Driver::calls, 3u);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[0], 6.0);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[1], 4.5);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[2], 1.5);
+  // Only the last arc, beyond the safety, is navigated.
+  EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 1);
+}
+
+// The safety is computed at most once per chord start. A retry starts from the
+// same point, so it reuses the refreshed value. Here the first arc stays within
+// the initial 10 mm safety; the second needs a refresh and one retry, and the
+// third starts from a new point.
+TEST(FieldPropagatorRungeKuttaNavigation, RefreshesSafetyOncePerChordStart)
+{
+  using Driver = RecordingCircularPropagatorDriver;
+
+  const auto result = PropagateOnCircle(/*physicsStep=*/16.0, /*safeLength=*/6.0, /*cachedSafety=*/10.0,
+                                        /*refreshedSafety=*/0.0);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_NEAR(result.moved, 16.0, 1.0e-12);
+  ASSERT_EQ(Driver::calls, 4u);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[0], 10.0);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[1], 6.0);
+  EXPECT_LT(Driver::requestedSteps[2], 6.0);
+  EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 2);
+  EXPECT_EQ(FiniteSafetyNavigator::safetyCalls, 2);
+}
+
+namespace {
+
+// Bz rises linearly along x from 0.1 T at x = 0 to 4 T at x = 100 mm and stays constant beyond.
+struct RisingField {
+  static constexpr double kStartField = 0.1 * copcore::units::tesla;
+  static constexpr double kEndField   = 4.0 * copcore::units::tesla;
+  static constexpr double kRampLength = 100.0 * copcore::units::millimeter;
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(Real_t x, Real_t, Real_t) const
+  {
+    const double fraction = std::clamp(double(x) / kRampLength, 0.0, 1.0);
+    return {Real_t(0.), Real_t(0.), Real_t(kStartField + fraction * (kEndField - kStartField))};
+  }
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(const vecgeom::Vector3D<Real_t> &position) const
+  {
+    return Evaluate(position[0], position[1], position[2]);
+  }
+};
+
+} // namespace
+
+// Where the chord check matters: the arc length is predicted from the field at
+// the start of the step, and a track that moves into a stronger field bends
+// more than predicted. Here a 50 MeV electron starts in 0.1 T and enters a
+// field that rises to 4 T within 100 mm. Without the check, the predicted arc
+// is navigated as one chord that lies about 0.4 mm from the trajectory. With
+// it, every navigated chord lies within deltaChord of a densely integrated
+// reference trajectory.
+TEST(FieldPropagatorRungeKuttaNavigation, ChordsOfTrackEnteringStrongerFieldStayWithinDeltaChord)
+{
+  using copcore::units::MeV;
+  using Equation   = MagneticFieldEquation<RisingField>;
+  using Stepper    = DormandPrinceRK45<Equation, RisingField, kNvar, double>;
+  using Driver     = RkIntegrationDriver<Stepper, double, int, Equation, RisingField>;
+  using Propagator = fieldPropagatorRungeKutta<RisingField, Driver, double, FiniteSafetyNavigator>;
+
+  const RisingField field;
+  constexpr int charge                           = -1;
+  const double mass                              = copcore::units::kElectronMassC2;
+  const double momentumMag                       = 50.0 * MeV;
+  const double kinE                              = std::sqrt(momentumMag * momentumMag + mass * mass) - mass;
+  const vecgeom::Vector3D<double> start          = {0.0, 0.0, 0.0};
+  const vecgeom::Vector3D<double> startDirection = {1.0, 0.0, 0.0};
+
+  vecgeom::Vector3D<double> momentum   = momentumMag * startDirection;
+  vecgeom::Vector3D<double> startField = field.Evaluate(start);
+  const double safeLength              = Propagator::ComputeSafeLength(momentum, startField, charge);
+  const double physicsStep             = safeLength;
+
+  FiniteSafetyNavigator::Reset(/*safetyValue=*/0.0, /*boundaryDist=*/-1.0, /*boundaryCall=*/-1);
+  vecgeom::Vector3D<double> position  = start;
+  vecgeom::Vector3D<double> direction = startDirection;
+  const auto currentState             = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  const double moved = Propagator::ComputeStepAndNextVolume(
+      field, kinE, mass, charge, physicsStep, safeLength, position, direction, currentState, nextState, hitSurfaceIndex,
+      propagated, safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_TRUE(propagated);
+  EXPECT_NEAR(moved, physicsStep, 1.0e-9 * physicsStep);
+  ASSERT_LE(FiniteSafetyNavigator::stepCalls, FiniteSafetyNavigator::kMaxRecordedChords);
+
+  // Reference trajectory from the same start, integrated in 0.05 mm pieces.
+  std::vector<vecgeom::Vector3D<double>> reference{start};
+  vecgeom::Vector3D<double> referencePosition = start;
+  vecgeom::Vector3D<double> referenceMomentum = momentumMag * startDirection;
+  double dydx[kNvar];
+  double lastGoodStep = 0.0;
+  int driverIters     = 0;
+  for (double done = 0.0; done < physicsStep;) {
+    const double piece = std::min(0.05, physicsStep - done);
+    done += Driver::Advance(referencePosition, referenceMomentum, charge, piece, field, dydx, lastGoodStep, 30,
+                            driverIters);
+    reference.push_back(referencePosition);
+  }
+
+  // Each chord covers the reference points that project onto it.
+  for (int i = 0; i < FiniteSafetyNavigator::stepCalls; ++i) {
+    SCOPED_TRACE(i);
+    const auto &chordStart     = FiniteSafetyNavigator::chordStarts[i];
+    const auto &chordDirection = FiniteSafetyNavigator::chordDirections[i];
+    const double chordLength   = FiniteSafetyNavigator::chordLengths[i];
+    double distance            = 0.0;
+    for (const auto &point : reference) {
+      const vecgeom::Vector3D<double> offset = point - chordStart;
+      const double along                     = offset.Dot(chordDirection);
+      if (along < 0.0 || along > chordLength) continue;
+      distance = std::max(distance, (offset - along * chordDirection).Length());
+    }
+    EXPECT_LT(distance, fieldConstants::deltaChord);
+  }
 }

@@ -59,7 +59,29 @@ public:
   static inline __host__ __device__ Real_t ComputeSafeLength(vecgeom::Vector3D<double> &momentumVec,
                                                              vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
 
+  /// Fraction of the longest acceptable arc that a retry requests, as fFractionNextEstimate in Geant4's
+  /// G4ChordFinder.
+  static constexpr double kChordRetryFraction = 0.98;
+
 protected:
+  /// @brief Estimated largest distance between an arc and its chord
+  /// @details A circular arc whose tangent makes the angle phi with its chord of length c lies at most
+  /// c tan(phi/2) / 2 from the chord, with tan(phi/2) = sin(phi) / (1 + cos(phi)). Using the larger of the two end
+  /// tangents makes the estimate exact for circles. In a varying field it is an estimate, as Geant4's chord distance
+  /// is. If a tangent is at 90 degrees or more to the chord, half the arc length is returned instead, which bounds
+  /// the distance of any arc: every point of it lies within half its length of one of its ends. The estimate never
+  /// exceeds that bound.
+  /// @param startDirection Unit tangent at the start of the arc
+  /// @param endDirection Unit tangent at the end of the arc
+  /// @param chordDir Unit direction of the chord
+  /// @param chordLen Length of the chord
+  /// @param arcLength Length of the arc
+  /// @return Estimated largest distance between the arc and its chord
+  static inline __host__ __device__ double ChordDistance(const vecgeom::Vector3D<double> &startDirection,
+                                                         const vecgeom::Vector3D<double> &endDirection,
+                                                         const vecgeom::Vector3D<double> &chordDir, double chordLen,
+                                                         double arcLength);
+
   static constexpr unsigned int fMaxTrials = 100;
   static constexpr unsigned int Nvar       = 6; // For position (3) and momentum (3) -- invariant
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
@@ -86,6 +108,20 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafe
   return sqrt(Real_t(2.0) * fieldConstants::deltaChord *
               inv_curv); // max length along curve for deflection
                          // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
+}
+
+template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
+inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ChordDistance(
+    const vecgeom::Vector3D<double> &startDirection, const vecgeom::Vector3D<double> &endDirection,
+    const vecgeom::Vector3D<double> &chordDir, double chordLen, double arcLength)
+{
+  const double cosStart = startDirection.Dot(chordDir);
+  const double cosEnd   = endDirection.Dot(chordDir);
+  if (vecCore::Min(cosStart, cosEnd) <= 0.) return 0.5 * arcLength;
+
+  const double tanHalfStart = startDirection.Cross(chordDir).Mag() / (1. + cosStart);
+  const double tanHalfEnd   = endDirection.Cross(chordDir).Mag() / (1. + cosEnd);
+  return 0.5 * chordLen * vecCore::Max(tanHalfStart, tanHalfEnd);
 }
 
 // Determine the step along curved trajectory for charged particles in a field.
@@ -134,6 +170,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   bool fullChord         = false;
   // bool lastWasZero             = false; // Debug only ?  JA 2022.09.05
   const double inv_momentumMag = 1.0 / momentumMag;
+  bool safetyRefreshed         = false; ///< safety was already refreshed at the current chord start
 
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
@@ -208,19 +245,42 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
              safetyAtChordStart);
     }
 #endif
-    if (safetyAtChordStart <= chordLen && stepDone > 0) {
+    if (safetyAtChordStart <= chordLen && stepDone > 0 && !safetyRefreshed) {
       // The reduced cached safety is not enough for this chord, so refresh the
       // cache at the current chord start before falling back to navigation.
+      // A shorter retry from the same chord start reuses the refreshed value.
       safetyAtChordStart = safetyCache.Refresh(position, Navigator_t::ComputeSafety(position, current_state, remains));
+      safetyRefreshed    = true;
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| refreshedSafety %g  ", safetyAtChordStart);
 #endif
     }
 
+    // Outside the geometry safety, navigation uses the chord in place of the arc. As in Geant4's G4ChordFinder, the
+    // chord is accepted only while its distance from the arc is below deltaChord.
+    const bool insideSafety = safetyAtChordStart > chordLen;
+    const double chordDistance =
+        insideSafety ? 0. : ChordDistance(direction, endDirection, chordDir, chordLen, double(arcAdvanced));
+
     double move;
-    if (safetyAtChordStart > chordLen) {
+    if (insideSafety) {
       // The move is safe
       move = chordLen;
+    } else if (chordDistance >= fieldConstants::deltaChord) {
+      // Retry a shorter arc from the same start, as Geant4 does. The distance grows with the square of the arc
+      // length, so this aims just below deltaChord.
+      const double reducedArc =
+          kChordRetryFraction * double(arcAdvanced) * sqrt(fieldConstants::deltaChord / chordDistance);
+      // As for any arc, the geometry safety may allow a longer one, which then needs no chord check. The comparison
+      // uses the requested length: in mixed precision the integrated length can round up above the safety, and a
+      // retry at the safety would then repeat the same arc.
+      maxNextSafeMove   = safetyAtChordStart < safeArc ? vecCore::Max(reducedArc, safetyAtChordStart) : reducedArc;
+      continueIteration = true;
+      ++chordIters;
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| chordDistance %g above deltaChord, retry with %g\n", chordDistance, maxNextSafeMove);
+#endif
+      continue;
     } else {
       // The move is not safe.
       // We need to check if the arc actually crosses any boundary along the chord and within chordLen
@@ -257,6 +317,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
       // A safety-enlarged arc does not enlarge the curvature allowance for the next arc.
       maxNextSafeMove   = vecCore::Max(safeLength, safetyCache.SafetyAt(position));
+      safetyRefreshed   = false;
       continueIteration = true;
     } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
                move <= kBoundaryAmbiguity) {
