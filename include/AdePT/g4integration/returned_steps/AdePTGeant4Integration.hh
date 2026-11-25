@@ -104,6 +104,15 @@ public:
   /// @brief The handoff validator, or nullptr when the check is off.
   HandoffValidator *GetHandoffValidator() const { return fHandoffValidator.get(); }
 
+  /// @brief Abort with a G4Exception if trajectory storage is enabled.
+  /// @details
+  /// Trajectories are fundamentally incompatible with parallel particle transport: G4TrackingManager holds a single
+  /// trajectory per thread, which cannot follow tracks transported in parallel on the GPU. AdePT calls this when it
+  /// receives a track and before it offloads a track. Debug builds also call it after the PreUserTrackingAction of
+  /// each GPU-born secondary.
+  /// @param origin the function reported in the G4Exception
+  static void RejectTrajectoryStorage(const char *origin);
+
 private:
   /// @brief Check the handoff of a returned track, if it left the GPU regions on a boundary.
   void ValidateHandoff(GPUStep const &parentStep, G4Track const &track);

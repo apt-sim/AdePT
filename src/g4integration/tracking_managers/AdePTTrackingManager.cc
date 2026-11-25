@@ -407,6 +407,9 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
+  // Reject trajectory storage before G4HepEm can pick up a trajectory left over from another track.
+  AdePTGeant4Integration::RejectTrajectoryStorage("AdePTTrackingManager::HandOverOneTrack");
+
   if (fGPURegions.empty()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
@@ -641,6 +644,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
           hostTrackData.userTrackInfo = aTrack->GetUserInformation();
         }
       }
+
+      // The PreUserTrackingAction of this track, called above or by G4HepEm, may have enabled trajectory storage, which
+      // is fundamentally incompatible with parallel transport on the GPU.
+      AdePTGeant4Integration::RejectTrajectoryStorage("AdePTTrackingManager::ProcessTrack");
 
       uint64_t gpuParentID;
       trackMapper.getGPUId(aTrack->GetParentID(), gpuParentID);

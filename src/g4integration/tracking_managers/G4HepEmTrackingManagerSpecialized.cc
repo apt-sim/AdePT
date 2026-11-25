@@ -47,9 +47,10 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
 
     // Track entered a GPU region. Now, the track must be properly ended here in the same way as G4HepEm would,
     // since G4HepEm exists the TrackElectron / TrackGamma function immediately after this function returns true.
-    // This includes Ending the tracking for fast simulation manager, deleting the trajectory (as those is not compliant
-    // with parallel tracking on GPU), and stacking the secondaries There is no need to call the PostUserTrackingAction,
-    // this will be called from the returned step when the track gets killed on the GPU
+    // This includes Ending the tracking for fast simulation manager and stacking the secondaries. Unlike G4HepEm, there
+    // is no trajectory to clean up, as the G4Trajectory is not compliant with parallel particle transport and therefore
+    // AdePT does not support it and rejects it. There is no need to
+    // call the PostUserTrackingAction, this will be called from the returned step when the track gets killed on the GPU
 
     // Invoke the fast simulation manager process EndTracking interface (if any)
     const G4ParticleDefinition *part = track->GetParticleDefinition();
@@ -67,14 +68,6 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
 
     if (fFastSimProc != nullptr) {
       fFastSimProc->EndTracking();
-    }
-
-    // // Delete the trajectory object (if the user set any)
-    G4VTrajectory *theTrajectory = evtMgr->GetTrackingManager()->GetStoreTrajectory() == 0
-                                       ? nullptr
-                                       : evtMgr->GetTrackingManager()->GimmeTrajectory();
-    if (theTrajectory != nullptr) {
-      delete theTrajectory;
     }
 
     // Push secondaries
