@@ -13,7 +13,7 @@ project(AdePT
 )
 
 # Minimum VecGeom release; it is also required by the installed AdePTConfig.cmake
-set(ADEPT_VECGEOM_MIN_VERSION 2.2.1)
+set(ADEPT_VECGEOM_MIN_VERSION 2.3.0)
 
 # Set versions of G4VG and covfie that are pulled in the CMake configuration
 set(ADEPT_G4VG_VERSION 1.0.7)
