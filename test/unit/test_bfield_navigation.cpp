@@ -989,8 +989,10 @@ TEST(FieldPropagatorRungeKuttaNavigation, MixedPrecisionChordBoundaryCrossingAtL
   safetyCache.Refresh(position, 0.0);
 
   // Small refreshed safety forces navigation on every chord; the second
-  // navigation call reports a boundary 0.3 mm into the chord.
-  FiniteSafetyNavigator::Reset(/*safetyValue=*/0.5, /*boundaryDist=*/0.3, /*boundaryCall=*/2);
+  // navigation call reports a boundary 0.1 mm into the chord. There, the 2 mm
+  // chord lies less than deltaIntersection from the arc, so the crossing needs
+  // no refinement.
+  FiniteSafetyNavigator::Reset(/*safetyValue=*/0.5, /*boundaryDist=*/0.1, /*boundaryCall=*/2);
 
   const double physicsStep = 6.0;
   const double moved       = Propagator::ComputeStepAndNextVolume(
@@ -1000,8 +1002,8 @@ TEST(FieldPropagatorRungeKuttaNavigation, MixedPrecisionChordBoundaryCrossingAtL
   EXPECT_TRUE(propagated);
   EXPECT_TRUE(nextState.IsOnBoundary());
   EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 2);
-  // First chord: full 2 mm arc; second chord: 0.3 mm to the boundary.
-  EXPECT_NEAR(moved, 2.3, 2.0e-3);
+  // First chord: full 2 mm arc; second chord: 0.1 mm to the boundary.
+  EXPECT_NEAR(moved, 2.1, 2.0e-3);
   const double displacement = (position - start).Length();
   EXPECT_NEAR(displacement, moved, 2.0e-3);
 }
@@ -1277,5 +1279,296 @@ TEST(FieldPropagatorRungeKuttaNavigation, ChordsOfTrackEnteringStrongerFieldStay
       distance = std::max(distance, (offset - along * chordDirection).Length());
     }
     EXPECT_LT(distance, fieldConstants::deltaChord);
+  }
+}
+
+namespace {
+
+// Navigator for the half-space n.r < d, whose boundary is the plane n.r = d. Steps are exact, so the crossing found
+// on a chord is the chord's true intersection with the plane. The safety is zero, so every chord is navigated.
+struct PlaneNavigator {
+  static constexpr double kBoundaryPush = 1.0e-8;
+  inline static vecgeom::Vector3D<double> normal{1.0, 0.0, 0.0};
+  inline static double offset = 0.0;
+  inline static int stepCalls = 0;
+
+  static void Reset(const vecgeom::Vector3D<double> &n, double d)
+  {
+    normal    = n;
+    offset    = d;
+    stepCalls = 0;
+  }
+
+  static double ComputeSafety(const vecgeom::Vector3D<double> &, const vecgeom::NavigationState &, double)
+  {
+    return 0.0;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState)
+  {
+    ++stepCalls;
+    const double approach = normal.Dot(direction);
+    if (approach > 0.0) {
+      const double distance = (offset - normal.Dot(position)) / approach;
+      if (distance >= 0.0 && distance < step) {
+        nextState = MakeState(kDaughterNavIndex, true);
+        return distance;
+      }
+    }
+    currentState.CopyTo(&nextState);
+    nextState.SetBoundaryState(false);
+    return step + 1.0;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex)
+  {
+    hitSurfaceIndex = 0;
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState);
+  }
+};
+
+struct PlaneCrossingResult {
+  double moved    = 0.0;
+  bool propagated = false;
+  vecgeom::Vector3D<double> position;
+  vecgeom::Vector3D<double> direction;
+  vecgeom::NavigationState nextState;
+};
+
+// Propagates from the origin along +x on the circle of RecordingCircularPropagatorDriver (radius 8 mm, bending
+// towards +y) towards the plane n.r = d.
+PlaneCrossingResult CrossPlaneOnCircle(const vecgeom::Vector3D<double> &n, double d, double safeLength,
+                                       int maxIterations)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, RecordingCircularPropagatorDriver, double, PlaneNavigator>;
+  RecordingCircularPropagatorDriver::Reset();
+  PlaneNavigator::Reset(n, d);
+
+  PlaneCrossingResult result;
+  result.position         = {0.0, 0.0, 0.0};
+  result.direction        = {1.0, 0.0, 0.0};
+  const auto currentState = MakeState(kParentNavIndex, false);
+  long hitSurfaceIndex    = -1;
+  int itersDone           = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(result.position, 0.0);
+  result.moved = Propagator::ComputeStepAndNextVolume(
+      DummyField{}, 10.0, 1.0, 1, /*physicsStep=*/10.0, safeLength, result.position, result.direction, currentState,
+      result.nextState, hitSurfaceIndex, result.propagated, safetyCache, maxIterations, itersDone, 0, false);
+  return result;
+}
+
+PlaneCrossingResult CrossPlaneOnCircle(double planeX, double safeLength, int maxIterations)
+{
+  return CrossPlaneOnCircle({1.0, 0.0, 0.0}, planeX, safeLength, maxIterations);
+}
+
+// Point of the circle of RecordingCircularPropagatorDriver, from the origin along +x, at the turning angle phi.
+vecgeom::Vector3D<double> CirclePoint(double phi)
+{
+  return {kCircleRadius * std::sin(phi), kCircleRadius * (1.0 - std::cos(phi)), 0.0};
+}
+
+// First point where that circle crosses the plane n.r = d, found by bisection on the turning angle.
+vecgeom::Vector3D<double> CircleCrossing(const vecgeom::Vector3D<double> &n, double d)
+{
+  double lo = 0.0, hi = 0.0;
+  while (n.Dot(CirclePoint(hi)) < d)
+    hi += 1.0e-3;
+  lo = hi - 1.0e-3;
+  for (int i = 0; i < 100; ++i) {
+    const double mid                        = 0.5 * (lo + hi);
+    (n.Dot(CirclePoint(mid)) < d ? lo : hi) = mid;
+  }
+  return CirclePoint(0.5 * (lo + hi));
+}
+
+vecgeom::Vector3D<double> CircleCrossing(double planeX)
+{
+  return CircleCrossing({1.0, 0.0, 0.0}, planeX);
+}
+
+} // namespace
+
+// The first chord, 2 mm long, meets the plane at three quarters of its length, where it lies about 0.05 mm from the
+// arc. The crossing is refined: the arc is integrated again up to the crossing, until the crossing found on the chord
+// is within deltaIntersection of the track. The track ends on the plane at the circle's crossing point, with the
+// circle's direction there.
+TEST(FieldPropagatorRungeKuttaNavigation, RefinesBoundaryCrossingToDeltaIntersection)
+{
+  constexpr double planeX     = 1.5;
+  constexpr double safeLength = 2.0;
+
+  const auto result = CrossPlaneOnCircle(planeX, safeLength, /*maxIterations=*/10);
+
+  const auto crossing     = CircleCrossing(planeX);
+  const double crossAngle = std::asin(planeX / kCircleRadius);
+  EXPECT_TRUE(result.propagated);
+  EXPECT_TRUE(result.nextState.IsOnBoundary());
+  EXPECT_EQ(result.nextState.GetNavIndex(), kDaughterNavIndex);
+  EXPECT_DOUBLE_EQ(RecordingCircularPropagatorDriver::requestedSteps[0], safeLength);
+  EXPECT_GT(RecordingCircularPropagatorDriver::calls, 1u);
+  EXPECT_LE(RecordingCircularPropagatorDriver::calls, 4u);
+  EXPECT_NEAR(result.position[0], planeX, 1.0e-12);
+  ExpectVectorNear(result.position, crossing, fieldConstants::deltaIntersection);
+  ExpectVectorNear(result.direction, vecgeom::Vector3D<double>{std::cos(crossAngle), std::sin(crossAngle), 0.0},
+                   1.0e-3);
+  // The refined arcs start at the origin, and the step is counted along the final chord up to the crossing: the
+  // chord of the circle up to its crossing point, which is shorter than the arc by about arc^3 / (24 R^2).
+  EXPECT_NEAR(result.moved, 2.0 * kCircleRadius * std::sin(0.5 * crossAngle), fieldConstants::deltaIntersection);
+}
+
+// Near the start of a chord, the chord stays within deltaIntersection of the arc: the crossing is accepted as found,
+// with one integration and one navigation.
+TEST(FieldPropagatorRungeKuttaNavigation, AcceptsCrossingWithinDeltaIntersectionWithoutRefinement)
+{
+  constexpr double planeX = 1.0e-3;
+
+  const auto result = CrossPlaneOnCircle(planeX, /*safeLength=*/2.0, /*maxIterations=*/10);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_TRUE(result.nextState.IsOnBoundary());
+  EXPECT_EQ(RecordingCircularPropagatorDriver::calls, 1u);
+  EXPECT_EQ(PlaneNavigator::stepCalls, 1);
+  ExpectVectorNear(result.position, CircleCrossing(planeX), fieldConstants::deltaIntersection);
+}
+
+// A refinement needs at least one more pass. Without one, the crossing found on the chord is accepted as before:
+// on the plane, but about 0.05 mm from the track.
+TEST(FieldPropagatorRungeKuttaNavigation, AcceptsUnrefinedCrossingAtIterationLimit)
+{
+  constexpr double planeX = 1.5;
+
+  const auto result = CrossPlaneOnCircle(planeX, /*safeLength=*/2.0, /*maxIterations=*/1);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_TRUE(result.nextState.IsOnBoundary());
+  EXPECT_EQ(RecordingCircularPropagatorDriver::calls, 1u);
+  EXPECT_NEAR(result.position[0], planeX, 1.0e-12);
+  const double offTrack = (result.position - CircleCrossing(planeX)).Length();
+  EXPECT_GT(offTrack, 0.02);
+  EXPECT_LT(offTrack, fieldConstants::deltaChord);
+}
+
+namespace {
+
+// Crosses planes along the first two chords (2 mm each), whose normals make the angle (radians) with the start
+// direction, and returns the largest distance of a crossing from the track. Every crossing ends on its plane in the
+// same call, also where a refined arc ends short of the plane and the step continues with a new chord.
+double CrossPlanesAlongFirstChords(double angle, int &crossings)
+{
+  double worst = 0.0;
+  const vecgeom::Vector3D<double> n{std::cos(angle), std::sin(angle), 0.0};
+  const vecgeom::Vector3D<double> center{0.0, kCircleRadius, 0.0};
+  for (double along = 0.05; along < 3.9; along += 0.05) {
+    // the plane through the point of the track at the arc length 'along' from the start
+    const double phi = along / kCircleRadius;
+    const double d   = n.Dot(CirclePoint(phi));
+    // A plane that the track meets nearly tangentially can be crossed and recrossed between the ends of one chord,
+    // which then misses it, as in Geant4: deltaChord bounds that, not the refinement.
+    if (n.Dot(vecgeom::Vector3D<double>{std::cos(phi), std::sin(phi), 0.0}) < 0.25) continue;
+    SCOPED_TRACE(::testing::Message() << "angle " << angle << " along " << along);
+    const auto result = CrossPlaneOnCircle(n, d, /*safeLength=*/2.0, /*maxIterations=*/10);
+    ++crossings;
+    EXPECT_TRUE(result.propagated);
+    EXPECT_TRUE(result.nextState.IsOnBoundary());
+    EXPECT_NEAR(n.Dot(result.position), d, 1.0e-12);
+    worst = std::max(worst, std::abs((result.position - center).Length() - kCircleRadius));
+  }
+  return worst;
+}
+
+} // namespace
+
+// Planes whose normal is at up to 34 degrees to the start direction: every crossing ends on the plane, within
+// deltaIntersection of the track, in one call.
+TEST(FieldPropagatorRungeKuttaNavigation, RefinedCrossingsAreWithinDeltaIntersectionAlongTheChord)
+{
+  int crossings = 0;
+  for (double angle : {-0.6, -0.3, 0.0, 0.3, 0.6}) {
+    SCOPED_TRACE(angle);
+    EXPECT_LE(CrossPlanesAlongFirstChords(angle, crossings), fieldConstants::deltaIntersection);
+  }
+  EXPECT_GT(crossings, 300);
+}
+
+// Near grazing incidence, each refinement moves the crossing found on the chord only a little, and
+// kMaxCrossingRefinements or the iteration limit can stop the refinement first. The crossing is then accepted on the
+// plane, but closer to the track than the unrefined chord crossing.
+TEST(FieldPropagatorRungeKuttaNavigation, GrazingCrossingsStayOnThePlaneNearTheTrack)
+{
+  int crossings = 0;
+  for (double angle : {-1.2, -0.9, 0.9, 1.2}) {
+    SCOPED_TRACE(angle);
+    EXPECT_LE(CrossPlanesAlongFirstChords(angle, crossings), 0.25 * fieldConstants::deltaChord);
+  }
+}
+
+// Reports a boundary at the middle of every chord.
+struct MidChordNavigator {
+  static constexpr double kBoundaryPush = 0.0;
+  inline static int stepCalls           = 0;
+
+  static double ComputeSafety(const vecgeom::Vector3D<double> &, const vecgeom::NavigationState &, double)
+  {
+    return 0.0;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &, const vecgeom::Vector3D<double> &,
+                                         double step, const vecgeom::NavigationState &,
+                                         vecgeom::NavigationState &nextState)
+  {
+    ++stepCalls;
+    nextState = MakeState(kDaughterNavIndex, true);
+    return 0.5 * step;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex)
+  {
+    hitSurfaceIndex = 0;
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState);
+  }
+};
+
+// A boundary reported at the middle of every chord, whatever its length, stays far from the arc: halving the arc
+// only quarters the distance. The propagator refines at most kMaxCrossingRefinements times and then accepts the
+// crossing on the chord.
+TEST(FieldPropagatorRungeKuttaNavigation, LimitsCrossingRefinementsPerCall)
+{
+  using Driver     = RecordingCircularPropagatorDriver;
+  using Propagator = fieldPropagatorRungeKutta<DummyField, Driver, double, MidChordNavigator>;
+  Driver::Reset();
+  MidChordNavigator::stepCalls = 0;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  const auto currentState = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, /*physicsStep=*/10.0, /*safeLength=*/2.0, position,
+                                       direction, currentState, nextState, hitSurfaceIndex, propagated, safetyCache, 10,
+                                       itersDone, 0, false);
+
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_EQ(Driver::calls, 1u + Propagator::kMaxCrossingRefinements);
+  EXPECT_EQ(MidChordNavigator::stepCalls, 1 + Propagator::kMaxCrossingRefinements);
+  // Each refinement integrates up to the crossing: half of the previous arc.
+  for (int i = 1; i <= Propagator::kMaxCrossingRefinements; ++i) {
+    EXPECT_NEAR(Driver::requestedSteps[i], 0.5 * Driver::requestedSteps[i - 1], 1.0e-12);
   }
 }
