@@ -77,6 +77,9 @@ Suite behavior:
   drift-smoke    : builds only this checkout and runs physics_drift_* once, without comparison
                    (surface builds only and runs the B-field unit tests)
   ci              : runs Jenkins-like selection for each config (can take much longer)
+
+drift and drift-smoke build integrationTest, plus any gtest executable already present in the
+build directory, because ctest runs those executables for test discovery.
 USAGE
 }
 
@@ -319,6 +322,42 @@ build_config() {
   [[ -x "${exe}" ]] || die "Build completed but executable missing: ${exe}"
 }
 
+# Before it applies -R or -L, ctest runs every gtest executable in the build directory to list its tests.
+# An executable left from an earlier build can fail to load against the new AdePT libraries
+# ("undefined symbol __fatbinwrap_..."), and then ctest fails. Rebuild the executables that exist.
+# A fresh build directory has none, so nothing extra is built.
+build_discovered_test_targets() {
+  local build_dir=$1
+
+  [[ "${BUILD_TARGET}" == "all" ]] && return 0
+
+  local -a targets=()
+  local testfile include_file exe target
+  while IFS= read -r -d '' testfile; do
+    while IFS= read -r include_file; do
+      [[ -f "${include_file}" ]] || continue
+      exe=$(sed -n 's/^if(EXISTS "\(.*\)")$/\1/p' "${include_file}" | head -n1)
+      target=$(sed -n 's/^ *add_test(\([^ ]*\)_NOT_BUILT .*/\1/p' "${include_file}" | head -n1)
+      if [[ -z "${exe}" || -z "${target}" ]]; then
+        log "Could not parse the gtest discovery script ${include_file}; building target 'all' instead"
+        cmake --build "${build_dir}" --target all -j"${JOBS}"
+        return 0
+      fi
+      if [[ -e "${exe}" ]]; then
+        targets+=("${target}")
+      fi
+    done < <(sed -n 's/^include("\(.*_include\.cmake\)")$/\1/p' "${testfile}")
+  done < <(find "${build_dir}" -name CTestTestfile.cmake -print0)
+
+  if [[ ${#targets[@]} -eq 0 ]]; then
+    log "No gtest executables from earlier builds in ${build_dir}"
+    return 0
+  fi
+
+  log "Rebuilding gtest executables that ctest runs for test discovery: ${targets[*]}"
+  cmake --build "${build_dir}" --target "${targets[@]}" -j"${JOBS}"
+}
+
 resolve_master_ref() {
   if [[ "${MASTER_REF}" != "auto" ]]; then
     case "${MASTER_REF}" in
@@ -496,6 +535,8 @@ for cfg in "${CONFIGS[@]}"; do
   pr_build_dir="${BUILD_ROOT}/BUILD_${suffix}"
 
   build_config "pr" "${REPO_ROOT}" "${pr_build_dir}" "${cfg}"
+  # ctest runs only in the PR build directory.
+  build_discovered_test_targets "${pr_build_dir}"
 
   if [[ "${SUITE}" == "drift" ]]; then
     master_build_dir="${BUILD_ROOT}/BUILD_MASTER_REFERENCE_${suffix}"
