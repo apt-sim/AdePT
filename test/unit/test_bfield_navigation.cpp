@@ -1344,7 +1344,7 @@ struct PlaneCrossingResult {
 // Propagates from the origin along +x on the circle of RecordingCircularPropagatorDriver (radius 8 mm, bending
 // towards +y) towards the plane n.r = d.
 PlaneCrossingResult CrossPlaneOnCircle(const vecgeom::Vector3D<double> &n, double d, double safeLength,
-                                       int maxIterations)
+                                       int maxIterations, double physicsStep = 10.0)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, RecordingCircularPropagatorDriver, double, PlaneNavigator>;
   RecordingCircularPropagatorDriver::Reset();
@@ -1359,7 +1359,7 @@ PlaneCrossingResult CrossPlaneOnCircle(const vecgeom::Vector3D<double> &n, doubl
   SafetyCache safetyCache;
   safetyCache.Refresh(result.position, 0.0);
   result.moved = Propagator::ComputeStepAndNextVolume(
-      DummyField{}, 10.0, 1.0, 1, /*physicsStep=*/10.0, safeLength, result.position, result.direction, currentState,
+      DummyField{}, 10.0, 1.0, 1, physicsStep, safeLength, result.position, result.direction, currentState,
       result.nextState, hitSurfaceIndex, result.propagated, safetyCache, maxIterations, itersDone, 0, false);
   return result;
 }
@@ -1394,7 +1394,65 @@ vecgeom::Vector3D<double> CircleCrossing(double planeX)
   return CircleCrossing({1.0, 0.0, 0.0}, planeX);
 }
 
+// Distance of a point from that circle.
+double DistanceFromCircle(const vecgeom::Vector3D<double> &point)
+{
+  return std::abs((point - vecgeom::Vector3D<double>{0.0, kCircleRadius, 0.0}).Length() - kCircleRadius);
+}
+
+// Plane normal to the track at the arc length s along that circle, with 2 mm chords and a 20 mm physics step. The
+// chords end at multiples of 2 mm, so the plane is met by the chord over [floor(s / 2) * 2, +2 mm]. A plane at
+// 1.5 mm into a chord is met 3/4 along it, about 0.05 mm from the track; the refined arc then ends about 2 um short
+// of the plane (as the arc up to the chord's crossing fraction is shorter than the arc up to the plane), so the
+// crossing needs a further chord after the refined one.
+PlaneCrossingResult CrossNormalPlaneOnCircle(double s)
+{
+  const double phi = s / kCircleRadius;
+  const vecgeom::Vector3D<double> n{std::cos(phi), std::sin(phi), 0.0};
+  return CrossPlaneOnCircle(n, n.Dot(CirclePoint(phi)), /*safeLength=*/2.0, /*maxIterations=*/10,
+                            /*physicsStep=*/20.0);
+}
+
 } // namespace
+
+// The plane at 17.5 mm is met on the ninth of ten passes. A refinement there would leave only the tenth pass for the
+// refined arc, which ends short of the plane, and the call would end without a boundary, short of it. A refinement
+// therefore needs two passes left: the crossing is accepted unrefined, on the plane, as without refinement.
+TEST(FieldPropagatorRungeKuttaNavigation, AcceptsUnrefinedCrossingWhenRefinedArcCouldNotReachTheSurface)
+{
+  constexpr double s = 17.5;
+  const vecgeom::Vector3D<double> n{std::cos(s / kCircleRadius), std::sin(s / kCircleRadius), 0.0};
+
+  const auto result = CrossNormalPlaneOnCircle(s);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_TRUE(result.nextState.IsOnBoundary());
+  EXPECT_EQ(result.nextState.GetNavIndex(), kDaughterNavIndex);
+  EXPECT_EQ(RecordingCircularPropagatorDriver::calls, 9u);
+  EXPECT_EQ(PlaneNavigator::stepCalls, 9);
+  EXPECT_NEAR(n.Dot(result.position), n.Dot(CirclePoint(s / kCircleRadius)), 1.0e-10);
+  const double offTrack = DistanceFromCircle(result.position);
+  EXPECT_GT(offTrack, fieldConstants::deltaIntersection);
+  EXPECT_LT(offTrack, fieldConstants::deltaChord);
+}
+
+// The same plane one chord earlier, at 15.5 mm, is met on the eighth pass. The refinement runs on the ninth pass, its
+// arc ends short of the plane, and the tenth pass meets the plane near the start of its chord, within
+// deltaIntersection of the track.
+TEST(FieldPropagatorRungeKuttaNavigation, RefinedArcEndingShortOfTheSurfaceReachesItWithTheReservedPass)
+{
+  constexpr double s = 15.5;
+  const vecgeom::Vector3D<double> n{std::cos(s / kCircleRadius), std::sin(s / kCircleRadius), 0.0};
+
+  const auto result = CrossNormalPlaneOnCircle(s);
+
+  EXPECT_TRUE(result.propagated);
+  EXPECT_TRUE(result.nextState.IsOnBoundary());
+  EXPECT_EQ(RecordingCircularPropagatorDriver::calls, 10u);
+  EXPECT_EQ(PlaneNavigator::stepCalls, 10);
+  EXPECT_NEAR(n.Dot(result.position), n.Dot(CirclePoint(s / kCircleRadius)), 1.0e-10);
+  EXPECT_LE(DistanceFromCircle(result.position), fieldConstants::deltaIntersection);
+}
 
 // The first chord, 2 mm long, meets the plane at three quarters of its length, where it lies about 0.05 mm from the
 // arc. The crossing is refined: the arc is integrated again up to the crossing, until the crossing found on the chord
@@ -1439,13 +1497,14 @@ TEST(FieldPropagatorRungeKuttaNavigation, AcceptsCrossingWithinDeltaIntersection
   ExpectVectorNear(result.position, CircleCrossing(planeX), fieldConstants::deltaIntersection);
 }
 
-// A refinement needs at least one more pass. Without one, the crossing found on the chord is accepted as before:
-// on the plane, but about 0.05 mm from the track.
+// A refinement needs two more passes: the refined arc, and the chord after it in case the refined arc ends short of
+// the surface. With a limit of two passes, the crossing found on the first chord is accepted as before: on the plane,
+// but about 0.05 mm from the track.
 TEST(FieldPropagatorRungeKuttaNavigation, AcceptsUnrefinedCrossingAtIterationLimit)
 {
   constexpr double planeX = 1.5;
 
-  const auto result = CrossPlaneOnCircle(planeX, /*safeLength=*/2.0, /*maxIterations=*/1);
+  const auto result = CrossPlaneOnCircle(planeX, /*safeLength=*/2.0, /*maxIterations=*/2);
 
   EXPECT_TRUE(result.propagated);
   EXPECT_TRUE(result.nextState.IsOnBoundary());

@@ -428,14 +428,15 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // from the track. As in Geant4, the crossing is accepted within deltaIntersection. Otherwise the arc is
       // integrated again from the same start up to the same fraction of its length, so that the next chord ends close
       // to the surface. That chord meets the surface closer to its end, where f (1 - f) is smaller, or it ends short of
-      // the surface, and the next chord then meets the surface near its start. A refinement costs one more integration
-      // and navigation, so it starts only while the iteration limit allows another pass, at most
+      // the surface, and the next chord then meets the surface near its start. A refinement therefore starts only while
+      // the iteration limit leaves two more passes, for the refined arc and for the chord after it; otherwise a refined
+      // arc ending short of the surface would end the call there, without a boundary. It also starts at most
       // kMaxCrossingRefinements times per call, and only while the refined arc is longer than kBoundaryAmbiguity.
       // When a limit stops the refinement, the crossing on the chord is accepted even if its estimated distance from
       // the track is above deltaIntersection. This happens mostly at shallow crossings, where a refinement gains less.
       const double intersectionError = 4. * fraction * (1. - fraction) * chordDistance;
       const double refinedArc        = fraction * double(arcAdvanced);
-      if (intersectionError > fieldConstants::deltaIntersection && chordIters + 1 < max_iterations &&
+      if (intersectionError > fieldConstants::deltaIntersection && chordIters + 2 < max_iterations &&
           crossingRefinements < kMaxCrossingRefinements && refinedArc > kBoundaryAmbiguity) {
         current_state.CopyTo(&next_state);
         next_state.SetBoundaryState(false);
