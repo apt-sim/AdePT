@@ -247,7 +247,13 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
                              "unset /adept/setVecGeomGDML to load via g4vg");
 #endif
   } else if (command == fSetCovfieFileCmd.get()) {
+#ifdef ADEPT_USE_EXT_BFIELD
     fAdePTConfiguration->SetCovfieBfieldFile(newValue);
+#else
+    G4ExceptionDescription description;
+    description << "/adept/setCovfieBfieldFile requires ADEPT_USE_EXT_BFIELD=ON; this build uses the Geant4 field";
+    command->CommandFailed(description);
+#endif
   } else if (command == fSetCUDAStackLimitCmd.get()) {
     fAdePTConfiguration->SetCUDAStackLimit(fSetCUDAStackLimitCmd->GetNewIntValue(newValue));
   } else if (command == fSetCUDAHeapLimitCmd.get()) {

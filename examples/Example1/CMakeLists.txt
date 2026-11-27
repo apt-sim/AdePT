@@ -72,9 +72,19 @@ add_test(NAME example1-g4vg
   COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
 )
 
-# Handoff validation (/adept/validateHandoff) with only EcalRegion on the GPU
-add_test(NAME example1-handoff
-  COMMAND ${CMAKE_COMMAND} -DEXAMPLE1=$<TARGET_FILE:example1> -DMACRO=${PROJECT_BINARY_DIR}/example1_handoff.mac
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunHandoffTest.cmake
+# Handoff validation (/adept/validateHandoff) with only EcalRegion on the GPU. Its macro sets a uniform field, which
+# ADEPT_USE_EXT_BFIELD builds do not support.
+if(NOT ADEPT_USE_EXT_BFIELD)
+  add_test(NAME example1-handoff
+    COMMAND ${CMAKE_COMMAND} -DEXAMPLE1=$<TARGET_FILE:example1> -DMACRO=${PROJECT_BINARY_DIR}/example1_handoff.mac
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunHandoffTest.cmake
+  )
+  set_tests_properties(example1-handoff PROPERTIES LABELS validation)
+endif()
+
+# Validate supported and unsupported field commands without initializing transport.
+add_test(NAME example1-field-ui
+  COMMAND ${CMAKE_COMMAND} -DAPPLICATION=$<TARGET_FILE:example1> -DEXT_BFIELD=${ADEPT_USE_EXT_BFIELD}
+          -P ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_field_ui_commands.cmake
 )
-set_tests_properties(example1-handoff PROPERTIES LABELS validation)
+set_tests_properties(example1-field-ui PROPERTIES LABELS unit TIMEOUT 120)

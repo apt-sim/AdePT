@@ -7,6 +7,7 @@
 #include "G4UIcmdWithoutParameter.hh"
 #include "G4UIcmdWithAString.hh"
 #include "G4UIcmdWith3VectorAndUnit.hh"
+#include "G4Exception.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -51,8 +52,22 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
   } else if (aCommand == fFileNameCmd) {
     fDetector->SetGDMLFile(aNewValue);
   } else if (aCommand == fFieldCmd) {
+#ifdef ADEPT_USE_EXT_BFIELD
+    G4ExceptionDescription description;
+    description << "/detector/setField requires ADEPT_USE_EXT_BFIELD=OFF; use /detector/setCovfieBfieldFile and "
+                   "/adept/setCovfieBfieldFile in this build";
+    aCommand->CommandFailed(description);
+#else
     fDetector->SetMagField(fFieldCmd->GetNew3VectorValue(aNewValue));
+#endif
   } else if (aCommand == fFieldFileNameCmd) {
+#ifdef ADEPT_USE_EXT_BFIELD
     fDetector->SetFieldFile(aNewValue);
+#else
+    G4ExceptionDescription description;
+    description
+        << "/detector/setCovfieBfieldFile requires ADEPT_USE_EXT_BFIELD=ON; use /detector/setField in this build";
+    aCommand->CommandFailed(description);
+#endif
   }
 }

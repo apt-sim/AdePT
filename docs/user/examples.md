@@ -30,6 +30,23 @@ Generated macros in the build tree include `example1.mac`,
 `example1_ttbar.mac` and `example1_handoff.mac`, run by the `example1-handoff`
 test (see [Handoff validation](handoff-validation.md)).
 
+### Magnetic field commands
+
+The field commands available in `example1` and `integrationTest` depend on the
+`ADEPT_USE_EXT_BFIELD` build option:
+
+| Build option | Supported commands |
+| --- | --- |
+| `OFF` | `/detector/setField Bx By Bz unit` for a uniform field |
+| `ON` | `/detector/setCovfieBfieldFile path` for Geant4 and `/adept/setCovfieBfieldFile path` for the GPU |
+
+Unsupported field commands fail immediately and stop macro execution. This also
+applies to a zero uniform-field vector in an external-field build and to a uniform
+field supplied alongside a covfie file. For an external field, supply the same map
+to both file commands. With no field commands, the default is no field.
+The uniform-field `example1-handoff` test is registered only with
+`ADEPT_USE_EXT_BFIELD=OFF`.
+
 ## Integration Test Macros
 
 The regression integration test also provides realistic macro setups, including
