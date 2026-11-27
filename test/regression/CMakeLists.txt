@@ -89,14 +89,15 @@ add_test(NAME testEm3_validation
 )
 set_tests_properties(testEm3_validation PROPERTIES LABELS "validation")
 
-# Validate the shower profile after an early GPU-to-CPU handoff. The validation
-# label selects this longer test for nightly/full CI and PR drift differences.
+# Validate the shower profile after an early GPU-to-CPU handoff. Label extended: a long test of an optional mode, run
+# by the nightly and /run-test-full, but not by the validation that a drift difference triggers in /run-test
+# (test/run_pr_ci.sh).
 add_test(NAME testEm3_validation_finish_on_cpu
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_finish_on_cpu.sh
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
-set_tests_properties(testEm3_validation_finish_on_cpu PROPERTIES LABELS "validation")
+set_tests_properties(testEm3_validation_finish_on_cpu PROPERTIES LABELS "validation;extended")
 
 # test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics
 # Geant4 simulation using G4HepEm. The energy deposition per layer error must be < 1% to pass the test

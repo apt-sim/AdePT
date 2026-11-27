@@ -46,7 +46,8 @@ Runs the AdePT PR CI flow on a self-hosted runner:
   1. build PR and upstream master reference for mono/split
   2. run physics drift comparisons
   3. always run unit tests on mono
-  4. run validation on mono + split when drift differs from master, or when requested
+  4. run validation on mono + split when drift differs from master (without the tests labelled extended),
+     or all validation tests when requested
   5. optionally build/run Debug and mixed precision drift smoke checks, plus surface compile/B-field checks
 
 Options:
@@ -343,14 +344,18 @@ if [[ "${DRIFT_STATUS}" -ne 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ]]; then
   validation_monol_status=1
   validation_split_status=1
 
-  if [[ "${DRIFT_STATUS}" -ne 0 ]]; then
-    log "Drift differs from master; running validation on mono and split"
+  # A drift difference alone runs the validation without the tests labelled extended: long tests of optional modes
+  # (for example FinishLastNParticlesOnCPU), which the nightly and --always-run-validation (/run-test-full) run.
+  validation_ctest_labels=(-L validation)
+  if [[ "${RUN_VALIDATION_ALWAYS}" -eq 1 ]]; then
+    log "Full validation requested; running all validation tests on mono and split"
   else
-    log "Full validation requested; running validation on mono and split"
+    log "Drift differs from master; running validation on mono and split without the tests labelled extended"
+    validation_ctest_labels+=(-LE extended)
   fi
 
   if [[ "${MONOL_BUILD_READY}" -eq 1 && ( "${UNIT_STATUS}" -eq 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ) ]]; then
-    run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L validation -j1
+    run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure "${validation_ctest_labels[@]}" -j1
   elif [[ "${MONOL_BUILD_READY}" -ne 1 ]]; then
     log "Skipping mono validation because the mono build is unavailable"
   else
@@ -358,7 +363,7 @@ if [[ "${DRIFT_STATUS}" -ne 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ]]; then
   fi
 
   if build_all_targets "${SPLIT_BUILD_DIR}"; then
-    run_and_capture validation_split_status run_ctest --test-dir "${SPLIT_BUILD_DIR}" --output-on-failure -L validation -j1
+    run_and_capture validation_split_status run_ctest --test-dir "${SPLIT_BUILD_DIR}" --output-on-failure "${validation_ctest_labels[@]}" -j1
   else
     log "Skipping split validation because the split build is unavailable"
   fi
