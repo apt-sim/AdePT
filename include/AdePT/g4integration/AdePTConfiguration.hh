@@ -82,6 +82,12 @@ public:
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
+  /// @brief Hand tracks returned by the GPU back to Geant4 as soon as they arrive on the host.
+  /// @details Off by default. When off, returned tracks are replayed in a fixed order once the GPU has finished the
+  /// event, which keeps results reproducible from run to run. When on, Geant4 can track them while the GPU still
+  /// transports the rest of the event, but the order in which the CPU draws random numbers depends on the GPU timing,
+  /// so results are no longer reproducible.
+  void SetDirectHandoff(bool directHandoff) { fDirectHandoff = directHandoff; }
   void SetMaxWDTIter(int maxIter) { fMaxWDTIter = maxIter; }
   void SetMaxChargedLooperCount(int maxCount)
   {
@@ -114,6 +120,7 @@ public:
   bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   bool GetSpeedOfLight() const { return fSpeedOfLight; }
   bool GetValidateHandoff() const { return fValidateHandoff; }
+  bool GetDirectHandoff() const { return fDirectHandoff; }
   bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
   int GetNumThreads() const { return fNumThreads; };
@@ -151,6 +158,7 @@ private:
   inline static bool sTransportInitializationOptionsLocked{false};
   bool fSpeedOfLight{false};
   bool fValidateHandoff{false};
+  bool fDirectHandoff{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
   int fNumThreads{-1};

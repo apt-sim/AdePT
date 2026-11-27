@@ -134,8 +134,14 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
   return transport;
 }
 
-bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool doUserSteppingAction, bool returnAllSteps)
+// Whether a step that hands its track back to Geant4 can skip the Geant4 step reconstruction: no G4Step is rebuilt and
+// no SD or user action is called; the G4Track is made from the step end point and pushed to the stack
+// (AdePTGeant4Integration::ReturnDeferredTrack, DeferredStepType::ReturnTrack).
+bool CanSkipStepReconstruction(const GPUStep &step, unsigned int blockSize, bool doUserSteppingAction,
+                               bool returnAllSteps)
 {
+  // A finish-on-CPU record is a zero-length handoff without energy deposit (RecordFinishOnCPU), not a step of the
+  // track, so there is nothing to pass to SD or user stepping actions even when they are called.
   if (step.fStepLimProcessId == kAdePTFinishOnCPUProcess) {
     return blockSize == 1 && step.fTotalEnergyDeposit == 0.;
   }
@@ -145,7 +151,7 @@ bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool do
   if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
     return false;
   }
-  // Direct return of tracks bypasses Geant4 step reconstruction and therefore requires a
+  // Skipping the Geant4 step reconstruction hands back only the track, so it requires a
   // secondary-free, zero-deposit GPUStep.
   if (blockSize != 1) return false;
   if (step.fTotalEnergyDeposit != 0.) return false;
@@ -431,9 +437,15 @@ void AdePTTrackingManager::FlushEvent()
   auto threadId = adept_integration::GetThreadId();
   auto eventId  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
+  if (fAdePTConfiguration->GetDirectHandoff()) {
+    FlushEventWithDirectHandoff(threadId, eventId);
+    return;
+  }
+
   // AdePTTrackingManager requests the flush while AdePTTransport still
   // owns the underlying state machine and buffer lifetime.
   fAdeptTransport->RequestFlush(threadId);
+  fTracksOffloadedSinceFlushRequest = false;
   while (!fAdeptTransport->AreReturnedStepsFlushed(threadId)) {
     fAdeptTransport->WaitForFlushProgress();
     ProcessReturnedGPUSteps(threadId, eventId);
@@ -471,12 +483,58 @@ void AdePTTrackingManager::FlushEvent()
   fAdeptTransport->MarkHostFlushed(threadId);
 }
 
+void AdePTTrackingManager::FlushEventWithDirectHandoff(int threadId, int eventId)
+{
+  static std::once_flag onceFlagDirectHandoff;
+  std::call_once(onceFlagDirectHandoff, [] {
+    G4cout << "AdePT: /adept/directHandoff is on: tracks returned by the GPU are handed back to Geant4 as they arrive. "
+              "Results are not reproducible from run to run."
+           << G4endl;
+  });
+
+  // Go back to Geant4 as soon as a returned e-/e+/gamma is on the urgent stack. Geant4 hands it to this tracking
+  // manager in its next pass and therefore calls FlushEvent again, so the event cannot end while the GPU still holds
+  // some of its tracks. Other returned tracks (secondaries of nuclear interactions done on the host) do not guarantee
+  // that, so they wait on the stack until a returned e-/e+/gamma arrives or the flush completes.
+  const auto urgentReturnedBefore = fGeant4Integration.GetNumUrgentReturnedTracks();
+  const auto returnToGeant4       = [&] {
+    if (fGeant4Integration.GetNumUrgentReturnedTracks() == urgentReturnedBefore) return false;
+    if (fAdePTConfiguration->GetVerbosity() >= 2) {
+      G4cout << "AdePTTrackingManager: returning to Geant4 with tracks handed back during the flush of event "
+             << eventId << G4endl;
+    }
+    return true;
+  };
+
+  ProcessReturnedGPUSteps(threadId, eventId);
+  if (returnToGeant4()) return;
+
+  // A flush requested by an earlier call in this event stays valid while this worker has not offloaded new tracks
+  // since. Offloading a track resets the event state to NewTracksFromG4 (AdePTTransport::AddTrack), so the flush has to
+  // be requested again.
+  if (fTracksOffloadedSinceFlushRequest) {
+    fAdeptTransport->RequestFlush(threadId);
+    fTracksOffloadedSinceFlushRequest = false;
+  }
+  while (!fAdeptTransport->AreReturnedStepsFlushed(threadId)) {
+    fAdeptTransport->WaitForFlushProgress();
+    ProcessReturnedGPUSteps(threadId, eventId);
+    if (returnToGeant4()) return;
+  }
+
+  // Final drain, as in the reproducible mode: tracks returned here are tracked by Geant4 after this call, and if they
+  // offload new tracks, Geant4 calls FlushEvent again.
+  ProcessReturnedGPUSteps(threadId, eventId);
+  fAdeptTransport->MarkHostFlushed(threadId);
+}
+
 void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
 {
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
   const bool returnAllSteps         = fAdePTConfiguration->GetReturnAllSteps();
   const bool globalHostData         = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
+  const bool directHandoff          = fAdePTConfiguration->GetDirectHandoff();
 
   // Transport owns the step-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
@@ -516,11 +574,27 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, doUserSteppingAction, returnAllSteps);
-        fGeant4Integration.QueueDeferredStep(std::span<const GPUStep>(&*it, blockSize),
-                                             returnTrackDirectly
-                                                 ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
-                                                 : AdePTGeant4Integration::DeferredStepType::ReplayStep);
+        // The last GPU step of a track that Geant4 takes over (left the GPU regions, finished on the CPU) or whose
+        // interaction the host performs (gamma- or lepton-nuclear). Such a step is handled in one of two ways:
+        // - ReturnTrack (AdePTGeant4Integration::ReturnDeferredTrack): a gamma leaving the GPU regions or a track
+        //   finished on the CPU, without energy deposit or secondaries and with no user stepping action to call.
+        //   No G4Step is rebuilt: the G4Track is made from the step end point and pushed to the stack.
+        // - ReplayStep (AdePTGeant4Integration::ProcessGPUStep): all other cases. The G4Step is rebuilt, SD and user
+        //   actions are called, the host performs a nuclear interaction and stacks its secondaries, and the track
+        //   (unless it ended, as in gamma-nuclear) is pushed to the stack.
+        // By default the step is queued with its type, and FlushEvent makes the same calls in a fixed order once the
+        // GPU has finished the event. With direct handoff, the calls are made here, in arrival order.
+        const std::span<const GPUStep> deferredStep(&*it, blockSize);
+        const auto type = CanSkipStepReconstruction(*it, blockSize, doUserSteppingAction, returnAllSteps)
+                              ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
+                              : AdePTGeant4Integration::DeferredStepType::ReplayStep;
+        if (!directHandoff) {
+          fGeant4Integration.QueueDeferredStep(deferredStep, type);
+        } else if (type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
+          fGeant4Integration.ReturnDeferredTrack(deferredStep, useHostData);
+        } else {
+          fGeant4Integration.ProcessGPUStep(deferredStep, doUserSteppingAction, doUserTrackingAction, useHostData);
+        }
       } else {
         fGeant4Integration.ProcessGPUStep(std::span<const GPUStep>(&*it, blockSize), doUserSteppingAction,
                                           doUserTrackingAction, useHostData);
@@ -696,6 +770,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, threadId, eventID,
                                 std::move(converted), useHostData, gammaRussianRouletteApplicable);
+      fTracksOffloadedSinceFlushRequest = true;
 
       fTrackCounter++; // increment the track counter for AdePT
 

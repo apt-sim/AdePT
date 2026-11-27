@@ -46,6 +46,10 @@ def generate_macro(template_path, output_path, args):
         "$finish_last_n_particles_on_cpu",
         finish_last_n_particles_on_cpu,
     )
+    macro_content = macro_content.replace(
+        "$direct_handoff",
+        "/adept/directHandoff true" if str(args.direct_handoff) == "True" else "",
+    )
     if args.covfie_bfield_file:
         field_setup = (
             f"/detector/setCovfieBfieldFile {args.covfie_bfield_file}\n"
@@ -129,6 +133,8 @@ def main():
                         help="CPU staging capacity factor for scored hits (default: 2.5)")
     parser.add_argument("--finish_last_n_particles_on_cpu", type=int, default=0,
                         help="Finish the last N in-flight particles of each event on CPU (default: 0)")
+    parser.add_argument("--direct_handoff", default="False",
+                        help="True or False: hand returned tracks back to Geant4 as they arrive (not reproducible)")
     parser.add_argument("--detector_field", type=str, default="0 0 0",
                         help="Constant magnetic field vector in tesla, format: 'Bx By Bz' (default: '0 0 0')")
     parser.add_argument("--covfie_bfield_file", type=str, default="",

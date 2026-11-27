@@ -62,6 +62,23 @@ relocation of the tracks returned to Geant4 can be checked with
 Offloading of electron, positron, and gamma tracks from Geant4 CPU tracking to AdePT GPU transport.
 ```
 
+### Tracks returned to Geant4
+
+The GPU hands a track back to Geant4 when it leaves the GPU regions, for gamma-
+and lepton-nuclear interactions, and when the last particles of an event are
+finished on the CPU (`/adept/FinishLastNParticlesOnCPU`). By default, AdePT
+collects these tracks during the event and hands them back in a fixed order once
+the GPU has finished all tracks of the event. This keeps results reproducible
+from run to run, but Geant4 waits for the GPU each time: in a detector where
+showers often leave and re-enter the GPU regions, an event goes through many such
+cycles.
+
+With `/adept/directHandoff true`, the returned tracks are handed back as soon as
+they arrive on the host, and Geant4 tracks them while the GPU still transports the
+rest of the event. This removes most of the waiting, but the order in which the
+CPU draws random numbers then depends on the GPU timing, so results are no longer
+reproducible from run to run.
+
 To avoid application-side code changes, AdePT aims to keep user-code callbacks
 consistent with Geant4 behavior (sensitive detectors, `TrackingAction`,
 `SteppingAction`, etc.). To do this, step information is copied back from GPU to
