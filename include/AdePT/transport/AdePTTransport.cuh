@@ -1327,9 +1327,14 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         }
 
         for (unsigned int threadId = 0; threadId < static_cast<unsigned int>(numThreads); ++threadId) {
+          // Both transitions below are compare-and-swap from the state loaded here: a worker may store a new state
+          // meanwhile (with /adept/directHandoff, AddTrack stores NewTracksFromG4 while a flush is in progress), and
+          // that state must not be overwritten.
           const auto state = eventStates[threadId].load(std::memory_order_acquire);
           if (state == EventState::WaitingForTransportToFinish && gpuState.perEventInFlight[threadId] == 0) {
-            eventStates[threadId] = EventState::RequestStepFlush;
+            EventState expected = state;
+            eventStates[threadId].compare_exchange_strong(expected, EventState::RequestStepFlush,
+                                                          std::memory_order_release, std::memory_order_relaxed);
           }
           if (state >= EventState::RequestStepFlush && gpuState.perEventInFlight[threadId] != 0) {
             // FIXME: this case should not happen and is related to some late injection that shows up too late in the
@@ -1337,7 +1342,9 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
                       << " and occupancy is " << gpuState.perEventInFlight[threadId]
                       << " ... Resetting state to WaitingForTransportToFinish\n";
-            eventStates[threadId] = EventState::WaitingForTransportToFinish;
+            EventState expected = state;
+            eventStates[threadId].compare_exchange_strong(expected, EventState::WaitingForTransportToFinish,
+                                                          std::memory_order_release, std::memory_order_relaxed);
           }
         }
 

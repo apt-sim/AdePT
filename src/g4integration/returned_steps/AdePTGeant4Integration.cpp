@@ -414,8 +414,16 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSte
   auto *returnedParentTrack = MakeReturnedTrackFromStep(
       parentStep, parentTData, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   if (fHandoffValidator) ValidateHandoff(parentStep, *returnedParentTrack);
-  G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
+  PushReturnedTrack(returnedParentTrack);
   fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
+}
+
+void AdePTGeant4Integration::PushReturnedTrack(G4Track *track)
+{
+  auto *stackManager      = G4EventManager::GetEventManager()->GetStackManager();
+  const auto urgentBefore = stackManager->GetNUrgentTrack();
+  stackManager->PushOneTrack(track);
+  if (stackManager->GetNUrgentTrack() > urgentBefore) ++fNumUrgentReturnedTracks;
 }
 
 G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G4int nSteps) const
@@ -893,7 +901,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     }
 
     if (returnParentTrackToG4) {
-      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
+      PushReturnedTrack(returnedParentTrack);
     }
   }
 

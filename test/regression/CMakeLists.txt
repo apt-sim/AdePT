@@ -99,6 +99,16 @@ add_test(NAME testEm3_validation_finish_on_cpu
 )
 set_tests_properties(testEm3_validation_finish_on_cpu PROPERTIES LABELS "validation;extended")
 
+# Validate the shower profile with /adept/directHandoff, which hands returned tracks back to Geant4 in arrival order.
+# Label extended, as for testEm3_validation_finish_on_cpu. The unit test test_direct_handoff covers the option in every
+# PR.
+add_test(NAME testEm3_validation_direct_handoff
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_direct_handoff.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+set_tests_properties(testEm3_validation_direct_handoff PROPERTIES LABELS "validation;extended")
+
 # test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics
 # Geant4 simulation using G4HepEm. The energy deposition per layer error must be < 1% to pass the test
 add_test(NAME testEm3_validation_regions
@@ -153,6 +163,16 @@ add_test(NAME test_finish_on_cpu_energy
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 set_tests_properties(test_finish_on_cpu_energy PROPERTIES LABELS "unit")
+
+# Events must end with all of their tracks when /adept/directHandoff returns to Geant4 during the flush.
+# Quick, so it runs in the unit suite on every PR CI invocation: the drift suite runs with the option off.
+add_test(NAME test_direct_handoff
+  COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_direct_handoff.sh
+  "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_BINARY_DIR}/test_direct_handoff_tmp"
+  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+set_tests_properties(test_direct_handoff PROPERTIES LABELS "unit")
 
 # testEm3.gdml has a calorimeter region and a world region. Adding only
 # caloregion must give the same result as tracking everywhere except the world.

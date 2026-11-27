@@ -145,6 +145,16 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetFinishOnCpuCmd->SetGuidance("Set N, the number of last N particles per event that are finished on CPU. Default: "
                                   "0. This is an important parameter for handling loopers in a magnetic field");
 
+  fSetDirectHandoffCmd = std::make_unique<G4UIcmdWithABool>("/adept/directHandoff", this);
+  fSetDirectHandoffCmd->SetGuidance(
+      "If true, tracks returned to Geant4 (leaving the GPU regions, gamma- or lepton-nuclear interaction, finish on "
+      "CPU) are handed back as soon as they arrive on the host, so Geant4 tracks them while the GPU still transports "
+      "the rest of the event. Default: false, the returned tracks are handed back in a fixed order once the GPU has "
+      "finished the event. WARNING: like FinishLastNParticlesOnCPU, this breaks reproducibility, because the order in "
+      "which the CPU draws random numbers then depends on the GPU timing.");
+  fSetDirectHandoffCmd->SetParameterName("DirectHandoff", false);
+  fSetDirectHandoffCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
   fSetMaxChargedLooperCountCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/MaxChargedLooperCount", this);
   fSetMaxChargedLooperCountCmd->SetGuidance(
       "Set N, the maximum charged-particle looper count before killing an electron or positron. Default: 500. "
@@ -256,6 +266,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetAdePTSeed(fSetAdePTSeedCmd->GetNewIntValue(newValue));
   } else if (command == fSetFinishOnCpuCmd.get()) {
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
+  } else if (command == fSetDirectHandoffCmd.get()) {
+    fAdePTConfiguration->SetDirectHandoff(fSetDirectHandoffCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMaxChargedLooperCountCmd.get()) {
     fAdePTConfiguration->SetMaxChargedLooperCount(fSetMaxChargedLooperCountCmd->GetNewIntValue(newValue));
   } else if (command == fSetMaxWDTIterCmd.get()) {

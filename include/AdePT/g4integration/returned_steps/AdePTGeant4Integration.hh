@@ -86,12 +86,21 @@ public:
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
   /// @brief Defer a returned step for later sorted replay on the host.
+  /// @details Not used with /adept/directHandoff, which processes these steps as soon as they arrive.
   void QueueDeferredStep(std::span<const GPUStep> gpuSteps, DeferredStepType type = DeferredStepType::ReplayStep);
 
   /// @brief Transfer ownership of the currently queued deferred steps.
   /// @details
   /// This drains the integration-local deferred-step storage without copying it.
   DeferredStepStore TakeDeferredSteps();
+
+  /// @brief Number of returned parent tracks (e-, e+, gamma) that this worker has put on the urgent Geant4 stack.
+  /// @details
+  /// Used by /adept/directHandoff: a returned track on the urgent stack guarantees that Geant4 hands a track to the
+  /// AdePT tracking manager in its next pass, and therefore calls `FlushEvent` again before the event ends.
+  /// Secondaries of nuclear interactions performed on the host are not counted: they can all be hadrons, which are
+  /// not tracked by AdePT.
+  unsigned long long GetNumUrgentReturnedTracks() const { return fNumUrgentReturnedTracks; }
 
   void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
   {
@@ -114,6 +123,11 @@ public:
   static void RejectTrajectoryStorage(const char *origin);
 
 private:
+  /// @brief Push a returned parent track (e-, e+ or gamma) to the Geant4 stack and count it if it is urgent.
+  /// @details The stacking action may kill the track or classify it as waiting; only an urgent track is counted, see
+  /// GetNumUrgentReturnedTracks.
+  void PushReturnedTrack(G4Track *track);
+
   /// @brief Check the handoff of a returned track, if it left the GPU regions on a boundary.
   void ValidateHandoff(GPUStep const &parentStep, G4Track const &track);
 
@@ -174,6 +188,7 @@ private:
 
   std::vector<GPUStep> fDeferredGPUSteps;
   std::vector<DeferredStep> fDeferredSteps;
+  unsigned long long fNumUrgentReturnedTracks{0}; ///< see GetNumUrgentReturnedTracks
 
   std::unique_ptr<HandoffValidator, AdePTGeant4Integration_detail::HandoffValidatorDeleter> fHandoffValidator;
 };

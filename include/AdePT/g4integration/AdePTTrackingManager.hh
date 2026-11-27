@@ -88,6 +88,16 @@ private:
   /// each batch.
   void ProcessReturnedGPUSteps(int threadId, int eventId);
 
+  /// @brief FlushEvent with /adept/directHandoff: hand returned tracks to Geant4 while the GPU still transports the
+  /// rest of the event.
+  /// @details
+  /// Returned steps that hand a track back to Geant4 are processed as soon as they arrive (see
+  /// ProcessReturnedGPUSteps), and this function returns to Geant4 as soon as one of them puts an e-, e+ or gamma on
+  /// the urgent stack. Geant4 then tracks it and calls FlushEvent again, so the event ends only once the GPU has
+  /// finished all of its tracks, as in the reproducible mode. Results are not reproducible from run to run, because
+  /// the order in which the CPU draws random numbers depends on the GPU timing.
+  void FlushEventWithDirectHandoff(int threadId, int eventId);
+
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   AdePTGeant4Integration fGeant4Integration;
   static inline int fNumThreads{0};
@@ -100,6 +110,8 @@ private:
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
   bool fSpeedOfLight{false};
+  /// This worker has offloaded tracks to the GPU since its last flush request (used by /adept/directHandoff).
+  bool fTracksOffloadedSinceFlushRequest{false};
 #ifdef ADEPT_ENABLE_POWER_METER
   bool fPowerMeterRunning{false};
 #endif

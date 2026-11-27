@@ -23,6 +23,7 @@
 /adept/setCPUCapacityFactor $cpu_capacity_factor
 /adept/setCUDAStackLimit 8192
 $finish_last_n_particles_on_cpu
+$direct_handoff
 
 # Track on the GPU everywhere except in removed regions
 /adept/setTrackInAllRegions $track_in_all_regions

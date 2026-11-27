@@ -116,6 +116,10 @@
 # Set N, the number of last N particles per event that are finished on CPU. Default: 0.
 # This is an important parameter for handling loopers in a magnetic field, but breaks reproducibility!
 
+/adept/directHandoff false
+# If true, tracks returned to Geant4 are handed back as soon as they arrive on the host instead of in a fixed order
+# once the GPU has finished the event. Default: false. Faster when workers wait for the GPU, but breaks reproducibility!
+
 /adept/MaxChargedLooperCount 500
 # Set N, the maximum charged-particle looper count before killing an electron or positron.
 # Default: 500. Set to 0 to disable this charged-looper kill. Maximum active value: 64535.
