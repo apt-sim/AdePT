@@ -3,8 +3,9 @@
 
 #include <AdePT/transport/kernels/AdePTSteppingAction.cuh>
 #include <AdePT/transport/support/PhysicalConstants.h>
-#include <cuda_runtime.h>
 #include <gtest/gtest.h>
+
+#include "DeviceVisibleMemory.hh"
 
 #include <array>
 #include <algorithm>
@@ -54,14 +55,15 @@ TEST(ATLASTruthSelection, RetainsForwardEnergyCandidatesAndInclusivePtBoundary)
   }};
   Candidate *deviceCandidates = nullptr;
   bool *selected              = nullptr;
-  ASSERT_EQ(cudaMallocManaged(&deviceCandidates, sizeof(candidates)), cudaSuccess);
-  ASSERT_EQ(cudaMallocManaged(&selected, candidates.size() * sizeof(bool)), cudaSuccess);
+  ASSERT_EQ(adept_test::MallocDeviceVisible(&deviceCandidates, sizeof(candidates)), ADEPT_DEVICE_API_SYMBOL(Success));
+  ASSERT_EQ(adept_test::MallocDeviceVisible(&selected, candidates.size() * sizeof(bool)),
+            ADEPT_DEVICE_API_SYMBOL(Success));
   std::copy(candidates.begin(), candidates.end(), deviceCandidates);
   SelectCandidates<<<1, 32>>>(deviceCandidates, selected, candidates.size());
-  ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)(), ADEPT_DEVICE_API_SYMBOL(Success));
   for (std::size_t i = 0; i < candidates.size(); ++i) {
     EXPECT_EQ(selected[i], candidates[i].expected) << "candidate " << i;
   }
-  EXPECT_EQ(cudaFree(selected), cudaSuccess);
-  EXPECT_EQ(cudaFree(deviceCandidates), cudaSuccess);
+  EXPECT_EQ(ADEPT_DEVICE_API_SYMBOL(Free)(selected), ADEPT_DEVICE_API_SYMBOL(Success));
+  EXPECT_EQ(ADEPT_DEVICE_API_SYMBOL(Free)(deviceCandidates), ADEPT_DEVICE_API_SYMBOL(Success));
 }

@@ -5,6 +5,10 @@
 
 namespace adept::transport {
 
+/// Threads per block of the transport kernel launches, also their launch bound: without it the AMD compiler sizes
+/// per-thread arrays promoted to LDS for 1024-thread blocks, which limits occupancy.
+inline constexpr int kTransportThreads = 32;
+
 /// @brief Runtime options copied into transport kernels.
 struct TransportKernelOptions {
   bool returnAllSteps{false};

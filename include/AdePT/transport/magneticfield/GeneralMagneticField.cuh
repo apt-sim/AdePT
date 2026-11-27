@@ -15,17 +15,24 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
+#include <variant>
 
 #ifdef ADEPT_USE_EXT_BFIELD
 
 #include <covfie/core/backend/transformer/affine.hpp>
+#include <covfie/core/backend/transformer/clamp.hpp>
 #include <covfie/core/backend/transformer/linear.hpp>
 #include <covfie/core/backend/transformer/strided.hpp>
 #include <covfie/core/field.hpp>
+#if defined(__HIP__)
+#include <covfie/hip/backend/primitive/hip_device_array.hpp>
+#else
 #include <covfie/cuda/backend/primitive/cuda_device_array.hpp>
 #include <covfie/cuda/error_check.hpp>
 
 #include <covfie/cuda/backend/primitive/cuda_texture.hpp>
+#endif
 
 using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
@@ -34,9 +41,19 @@ using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linea
 // using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
 //     covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
 
+#if defined(__HIP__)
+// covfie has no HIP texture backend: trilinear interpolation over normal GPU memory. As the CUDA texture does, the grid
+// coordinate is clamped to [0, n-1] before interpolating; the inner clamp keeps the upper neighbour inside the grid
+template <class Array>
+using hip_clamped_t    = covfie::backend::affine<covfie::backend::clamp<
+       covfie::backend::linear<covfie::backend::clamp<covfie::backend::strided<covfie::vector::size3, Array>>>>>;
+using cuda_field_t     = covfie::field<hip_clamped_t<covfie::backend::hip_device_array<covfie::vector::float3>>>;
+using hip_host_field_t = covfie::field<hip_clamped_t<covfie::backend::array<covfie::vector::float3>>>;
+#else
 // use GPU texture memory
 using cuda_field_t = covfie::field<
     covfie::backend::affine<covfie::backend::cuda_texture<covfie::vector::float3, covfie::vector::float3>>>;
+#endif
 
 using field_view_t = typename cuda_field_t::view_t;
 #endif
@@ -60,9 +77,20 @@ public:
     cpu_field_t cpuField(ifs);
     ifs.close();
 
+#if defined(__HIP__)
+    // device field in normal GPU memory
+    const auto &grid = cpuField.backend().get_backend().get_backend();
+    const auto n     = grid.get_configuration();
+    typename hip_host_field_t::backend_t::backend_t::configuration_t range{
+        {0.f, 0.f, 0.f}, {static_cast<float>(n[0] - 1), static_cast<float>(n[1] - 1), static_cast<float>(n[2] - 1)}};
+    fFieldMap = std::make_unique<cuda_field_t>(
+        hip_host_field_t(covfie::make_parameter_pack(cpuField.backend().get_configuration(), std::move(range),
+                                                     std::monostate{}, typename std::decay_t<decltype(grid)>(grid))));
+#else
     // create device field map in texture memory
     fFieldMap = std::make_unique<cuda_field_t>(covfie::make_parameter_pack(
         cpuField.backend().get_configuration(), cpuField.backend().get_backend().get_backend()));
+#endif
 
     // alternative: create device field in global GPU memory
     // fFieldMap = std::make_unique<cuda_field_t>(cpuField);

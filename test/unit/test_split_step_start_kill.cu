@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/kernels/electrons_split.cuh>
 #include <AdePT/transport/kernels/gammas_split.cuh>
@@ -13,7 +14,7 @@
 #include <gtest/gtest.h>
 
 #ifdef ADEPT_ENABLE_WDT
-#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/DeviceManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <array>
 
@@ -82,7 +83,7 @@ class Managed {
 public:
   Managed()
   {
-    ADEPT_DEVICE_API_CALL(MallocManaged(&fValue, sizeof(T)));
+    adept_test::AllocDeviceVisible(&fValue, sizeof(T));
     new (fValue) T{};
   }
   ~Managed()
@@ -131,12 +132,12 @@ public:
     // The single auxiliary entry below represents the world's logical volume.
     ASSERT_EQ(logicalIds[0], 0);
     fWorldIndex = indices[6];
-    ASSERT_TRUE(vecgeom::cxx::CudaManager::Instance().SynchronizeNavigationTable());
+    ASSERT_TRUE(vecgeom::DeviceManager::Instance().SynchronizeNavigationTable());
   }
 
   static void TearDownTestSuite()
   {
-    vecgeom::cxx::CudaManager::Instance().CleanGpu();
+    vecgeom::DeviceManager::Instance().CleanGpu();
     vecgeom::GeoManager::Instance().Clear();
   }
 #endif
@@ -144,7 +145,7 @@ public:
 protected:
   void SetUp() override
   {
-    ADEPT_DEVICE_API_CALL(MallocManaged(&fQueueStorage, adept::MParray::SizeOfInstance(1)));
+    adept_test::AllocDeviceVisible(&fQueueStorage, adept::MParray::SizeOfInstance(1));
     fQueue = adept::MParray::MakeInstanceAt(1, fQueueStorage);
     ASSERT_TRUE(fQueue->push_back(0));
   }

@@ -8,6 +8,7 @@
  */
 
 #include <AdePT/transport/containers/BlockData.h>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/support/Portability.hh>
 
 #include <gtest/gtest.h>
@@ -37,7 +38,7 @@ class ManagedBlock {
 public:
   explicit ManagedBlock(int capacity)
   {
-    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fStorage, Block::SizeOfInstance(capacity));
+    const auto result = adept_test::MallocDeviceVisible(&fStorage, Block::SizeOfInstance(capacity));
     if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
     }

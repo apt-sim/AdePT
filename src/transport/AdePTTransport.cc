@@ -28,7 +28,6 @@
 
 namespace adept::transport::detail {
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
-void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
 std::thread LaunchGPUWorker(int, int, int, adept::transport::TrackBuffer &, adept::transport::GPUstate &,
@@ -169,30 +168,33 @@ void AdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, doub
 
 bool AdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
-  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  auto &deviceManager = vecgeom::DeviceManager::Instance();
   adept::transport::detail::setDeviceLimits(fCUDAStackLimit, fCUDAHeapLimit);
 
+  // One synchronize call puts the selected parts of the host model on the device
+  vecgeom::DeviceSyncOptions options;
   bool success = true;
 #ifdef ADEPT_USE_SURF
 #ifdef ADEPT_MIXED_PRECISION
-  using SurfData   = vgbrep::SurfData<float>;
-  using BrepHelper = vgbrep::BrepHelper<float>;
+  using BrepHelper  = vgbrep::BrepHelper<float>;
+  options.fSurfaces = vecgeom::DeviceSyncOptions::Surfaces::kFloat;
 #else
-  using SurfData   = vgbrep::SurfData<double>;
-  using BrepHelper = vgbrep::BrepHelper<double>;
+  using BrepHelper  = vgbrep::BrepHelper<double>;
+  options.fSurfaces = vecgeom::DeviceSyncOptions::Surfaces::kDouble;
 #endif
   auto start = std::chrono::steady_clock::now();
   if (!BrepHelper::Instance().Convert()) return false;
   BrepHelper::Instance().PrintSurfData();
   auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start);
   std::cout << "== Conversion to surface model done in " << elapsed.count() << " [s]\n";
-  cudaManager.SynchronizeNavigationTable();
-  adept::transport::detail::CopySurfaceModelToGPU();
+  options.fVolumes = false;
+  deviceManager.Synchronize(options);
+  std::cout << "== Surface data transferred to GPU\n";
 #else
-  cudaManager.LoadGeometry(world);
-  auto world_dev = cudaManager.Synchronize();
-  success        = world_dev != nullptr;
   InitBVH();
+  options.fBVH = true;
+  deviceManager.LoadGeometry(world);
+  success = deviceManager.Synchronize(options) != nullptr;
 #endif
   return success;
 }
@@ -279,8 +281,6 @@ void AdePTTransport::InitBVH()
             << vecgeom::AABBSubdivisionModeName(vecgeom::cxx::BVHManager::GetAABBSubdivisionMode()) << "': split "
             << stats.acceptedSplits << " daughters in " << stats.splitLogicalVolumes << " logical volumes, "
             << stats.originalBoxes << " -> " << stats.finalBoxes << " BVH boxes\n";
-
-  vecgeom::cxx::BVHManager::DeviceInit();
 }
 
 void AdePTTransport::RequestFlush(int threadId)

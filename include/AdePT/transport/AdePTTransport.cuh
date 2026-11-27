@@ -41,12 +41,11 @@
 using SelectedSteppingAction = adept::SteppingAction::Action;
 
 #include <VecGeom/base/Config.h>
-#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/DeviceManager.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 #ifdef ADEPT_USE_SURF
-#include <VecGeom/surfaces/cuda/BrepCudaManager.h>
 #endif
 
 #include <G4HepEmData.hh>
@@ -297,7 +296,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 
     if (particlesInFlight > occupiedSlots) {
       printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
-      asm("trap;");
+      ADEPT_DEVICE_TRAP();
     }
   } else if (blockIdx.x == 2) {
     if (threadIdx.x == 0) {
@@ -443,22 +442,6 @@ void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
     std::cout << "CUDA Device heap limit: " << heapLimit << "\n";
     ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), heapLimit));
   }
-}
-
-void CopySurfaceModelToGPU()
-{
-// Copy surface data to GPU
-#ifdef ADEPT_USE_SURF
-#ifdef ADEPT_MIXED_PRECISION
-  using SurfData        = vgbrep::SurfData<float>;
-  using BrepCudaManager = vgbrep::BrepCudaManager<float>;
-#else
-  using SurfData        = vgbrep::SurfData<double>;
-  using BrepCudaManager = vgbrep::BrepCudaManager<double>;
-#endif
-  BrepCudaManager::Instance().TransferSurfData(SurfData::Instance());
-  printf("== Surface data transferred to GPU\n");
-#endif
 }
 
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters)
@@ -631,7 +614,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     }
   }
 #else
-  vecgeom::Vector3D<float> bfieldValues({uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]});
+  vecgeom::Vector3D<float> bfieldValues(uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]);
   std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(bfieldValues);
 
   vecgeom::Vector3D<float> position{
@@ -643,6 +626,15 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   if (field_value.Mag2() > 0) {
     if (!InitializeBField(*Bfield))
       throw std::runtime_error("AdePTTransport::InitializeBField cannot initialize UniformMagneticField on GPU");
+  }
+#endif
+
+#ifdef __HIP__
+  // HIP maps streams onto GPU_MAX_HW_QUEUES in-order hardware queues (default 4); with fewer queues than concurrent
+  // streams, a stream waiting on an event also stalls the streams sharing its queue
+  if (const char *queues = std::getenv("GPU_MAX_HW_QUEUES"); queues == nullptr || std::atoi(queues) < 8) {
+    std::cerr << "AdePT: GPU_MAX_HW_QUEUES is " << (queues ? queues : "unset (default 4)")
+              << ", fewer than the 8 hardware queues the transport streams need; set GPU_MAX_HW_QUEUES=8\n";
   }
 #endif
 
@@ -800,9 +792,8 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
                    const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
 
-  using InjectState                             = GPUstate::InjectState;
-  auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
-  const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
+  using InjectState                                                   = GPUstate::InjectState;
+  const vecgeom::VPlacedVolumeT<vecgeom::MemSpace::device> *world_dev = vecgeom::DeviceManager::Instance().world_gpu();
 
   auto &electrons                = gpuState.electrons;
   auto &positrons                = gpuState.positrons;
@@ -838,7 +829,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 #endif
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
-    constexpr int TransportThreads = 32;
+    constexpr int TransportThreads = kTransportThreads;
     // If using a larger block size, it may be worth using a smaller size when transporting few
     // tracks in order to increase the number of blocks launched
     // constexpr int LowOccupancyTransportThreads = 32;
@@ -1274,7 +1265,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             // with gpuState.stream
             waitForOtherStream(gpuState.stream, stepTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
-            static_assert(gpuState.nSlotManager_dev == GPUQueueIndex::NumSpecies,
+            static_assert(GPUstate::nSlotManager_dev == GPUQueueIndex::NumSpecies,
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);

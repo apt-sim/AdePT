@@ -146,9 +146,9 @@ if(ADEPT_ENABLE_WDT)
   # Own the device globals instead of importing hidden symbols from Transport.
   add_executable(test_woodcock_helper test_woodcock_helper.cu test_woodcock_helper_geometry.cpp)
   cuda_rdc_target_link_libraries(test_woodcock_helper PRIVATE
-    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
+    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmData ${ADEPT_DEVICE_RUNTIME} GTest::gtest_main)
   if(ADEPT_USE_EXT_BFIELD)
-    target_link_libraries(test_woodcock_helper PRIVATE covfie::core covfie::cuda)
+    target_link_libraries(test_woodcock_helper PRIVATE covfie::core $<IF:$<BOOL:${ADEPT_USE_HIP}>,covfie::hip,covfie::cuda>)
   endif()
   set_target_properties(test_woodcock_helper PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   gtest_discover_tests(test_woodcock_helper
@@ -162,9 +162,9 @@ if(ADEPT_USE_SPLIT_KERNELS AND ADEPT_USE_CUDA)
     target_sources(test_split_step_start_kill PRIVATE test_woodcock_helper_geometry.cpp)
   endif()
   cuda_rdc_target_link_libraries(test_split_step_start_kill PRIVATE
-    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
+    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData ${ADEPT_DEVICE_RUNTIME} GTest::gtest_main)
   if(ADEPT_USE_EXT_BFIELD)
-    target_link_libraries(test_split_step_start_kill PRIVATE covfie::core covfie::cuda)
+    target_link_libraries(test_split_step_start_kill PRIVATE covfie::core $<IF:$<BOOL:${ADEPT_USE_HIP}>,covfie::hip,covfie::cuda>)
   endif()
   add_test(NAME test_split_step_start_kill COMMAND test_split_step_start_kill)
   set_tests_properties(test_split_step_start_kill PROPERTIES LABELS "unit;validation")
@@ -173,9 +173,9 @@ if(ADEPT_USE_SPLIT_KERNELS AND ADEPT_USE_CUDA)
   add_executable(test_split_electron_msc test_split_electron_msc.cu)
   # Compile the production kernel with test-owned globals; no Transport symbol exports are required.
   cuda_rdc_target_link_libraries(test_split_electron_msc PRIVATE
-    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
+    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData ${ADEPT_DEVICE_RUNTIME} GTest::gtest_main)
   if(ADEPT_USE_EXT_BFIELD)
-    target_link_libraries(test_split_electron_msc PRIVATE covfie::core covfie::cuda)
+    target_link_libraries(test_split_electron_msc PRIVATE covfie::core $<IF:$<BOOL:${ADEPT_USE_HIP}>,covfie::hip,covfie::cuda>)
   endif()
   set_target_properties(test_split_electron_msc PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   gtest_discover_tests(test_split_electron_msc

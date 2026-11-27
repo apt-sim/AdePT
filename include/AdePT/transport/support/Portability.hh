@@ -18,6 +18,23 @@
 
 #pragma once
 
+#if defined(__HIP__)
+// nvcc includes the CUDA runtime implicitly, hip-clang does not
+#include <hip/hip_runtime.h>
+// Abort a kernel: __trap() is CUDA-only, __builtin_trap() is host-only for nvcc
+#define ADEPT_DEVICE_TRAP() __builtin_trap()
+// Typed pinned host allocation as cudaMallocHost(T **, size) provides it
+template <class T>
+inline hipError_t hipMallocHost(T **ptr, size_t size)
+{
+  return hipHostMalloc(reinterpret_cast<void **>(ptr), size, hipHostMallocDefault);
+}
+#endif
+
+#if !defined(__HIP__)
+#define ADEPT_DEVICE_TRAP() __trap()
+#endif
+
 #ifndef __CUDA_ARCH__
 #include <stdexcept>
 #include <sstream>
@@ -53,7 +70,6 @@
 #define ADEPT_DEVICE_PLATFORM_UPPER_STR "CUDA"
 #define ADEPT_DEVICE_API_SYMBOL(TOK) cuda##TOK
 #elif defined(__HIP__)
-// NOTE: not yet implemented
 #define ADEPT_DEVICE_PLATFORM hip
 #define ADEPT_DEVICE_PLATFORM_UPPER_STR "HIP"
 #define ADEPT_DEVICE_API_SYMBOL(TOK) hip##TOK
@@ -257,7 +273,7 @@ namespace portability {
 // FUNCTION DECLARATIONS
 //---------------------------------------------------------------------------//
 
-#ifndef ADEPT_DEVICE_COMPILE // Not defined for code that runs on device
+#ifndef __CUDA_ARCH__ // Not for the CUDA device pass; HIP parses its host-only overloads in the device pass too
 [[nodiscard]] std::logic_error make_debug_error(char const *which, char const *condition, char const *file, int line);
 
 [[nodiscard]] std::runtime_error make_runtime_error(char const *which, char const *what, char const *condition,

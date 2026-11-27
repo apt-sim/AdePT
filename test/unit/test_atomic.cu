@@ -8,6 +8,7 @@
  */
 
 #include <AdePT/transport/containers/Atomic.h>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/support/Portability.hh>
 
 #include <gtest/gtest.h>
@@ -62,7 +63,7 @@ template <typename T>
 T *MakeManagedObject()
 {
   T *object         = nullptr;
-  const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&object, sizeof(T));
+  const auto result = adept_test::MallocDeviceVisible(&object, sizeof(T));
   if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
     throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
   }
