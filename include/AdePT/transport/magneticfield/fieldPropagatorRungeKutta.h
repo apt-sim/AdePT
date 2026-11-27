@@ -176,6 +176,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   const double inv_momentumMag = 1.0 / momentumMag;
   bool safetyRefreshed         = false; ///< safety was already refreshed at the current chord start
   int crossingRefinements      = 0;     ///< boundary crossings refined in this call
+  double firstChordArc         = 0.;    ///< arc of the first chord of a step starting on a boundary, while refined
+  Real_t firstChordHint        = 0.;    ///< step hint that reproduces the integration of that chord
 
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
@@ -207,6 +209,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const double safeArc = vecCore::Min(remains, maxNextSafeMove);
+    // Until a crossing is refined, keep the step hint of this integration, to take the first chord again exactly (see
+    // below). Advance tries the whole arc at once in the first integration of a call and starts from the hint
+    // otherwise, so in the first integration the arc itself is the hint that reproduces it.
+    if (crossingRefinements == 0) firstChordHint = chordIters == 0 ? Real_t(safeArc) : last_good_step;
 
     Real_t dydx_end[Nvar]; // not reused at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
@@ -324,6 +330,28 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       maxNextSafeMove   = vecCore::Max(safeLength, safetyCache.SafetyAt(position));
       safetyRefreshed   = false;
       continueIteration = true;
+    } else if (firstChordArc > 0. && stepDone == 0 && current_state.IsOnBoundary() &&
+               (move < 0.5 * chordLen || move <= kBoundaryAmbiguity) && chordIters + 1 < max_iterations) {
+      // A refined chord meets the surface being refined near its end. If a refined chord of the first chord of a step
+      // that starts on a boundary meets a surface in the first half of its length, or within kBoundaryAmbiguity, it
+      // found another surface right next to the boundary just crossed: the face of a volume that overlaps by
+      // nanometres, or by a fraction of a nanometre as volumes placed with rounding errors do. Stopping there, the
+      // next steps would shuttle the track between the overlapping volumes. This is checked before the tiny-boundary
+      // handling below, which would otherwise accept such a crossing. The first chord is integrated again, with the
+      // same arc and step hint, so that it ends exactly where it did, and its crossing is accepted as found, as
+      // without refinement: it carries the track out of the overlap.
+      current_state.CopyTo(&next_state);
+      next_state.SetBoundaryState(false);
+      maxNextSafeMove     = firstChordArc;
+      last_good_step      = firstChordHint;
+      firstChordArc       = 0.;
+      crossingRefinements = kMaxCrossingRefinements;
+      continueIteration   = true;
+      ++chordIters;
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| refined chord met another surface at %g: first chord again, unrefined\n", move / chordLen);
+#endif
+      continue;
     } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
                move <= kBoundaryAmbiguity) {
       // A first chord step that immediately reports a boundary while already on
@@ -434,10 +462,15 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // kMaxCrossingRefinements times per call, and only while the refined arc is longer than kBoundaryAmbiguity.
       // When a limit stops the refinement, the crossing on the chord is accepted even if its estimated distance from
       // the track is above deltaIntersection. This happens mostly at shallow crossings, where a refinement gains less.
-      const double intersectionError = 4. * fraction * (1. - fraction) * chordDistance;
-      const double refinedArc        = fraction * double(arcAdvanced);
+      const double intersectionError    = 4. * fraction * (1. - fraction) * chordDistance;
+      const double refinedArc           = fraction * double(arcAdvanced);
+      const bool firstChordFromBoundary = stepDone == 0 && current_state.IsOnBoundary();
+
       if (intersectionError > fieldConstants::deltaIntersection && chordIters + 2 < max_iterations &&
           crossingRefinements < kMaxCrossingRefinements && refinedArc > kBoundaryAmbiguity) {
+        // Kept, with firstChordHint, to integrate this chord again exactly as now, should a refined chord meet another
+        // surface (see above).
+        if (crossingRefinements == 0 && firstChordFromBoundary) firstChordArc = safeArc;
         current_state.CopyTo(&next_state);
         next_state.SetBoundaryState(false);
         maxNextSafeMove   = refinedArc;
@@ -453,7 +486,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       }
 
       // Use the intersection point of the chord with the surface. Its estimated distance from the track is within
-      // deltaIntersection unless one of the limits above stopped the refinement.
+      // deltaIntersection unless one of the limits above stopped the refinement, or the first chord of a step that
+      // starts on a boundary was taken again.
 
       // Primitive approximation of end direction and linearStep to the crossing point ...
       position += move * chordDir; // linearStep
@@ -475,8 +509,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     stepDone += move; // curvedStep
     remains -= move;  // curvedStep
     chordIters++;
-    found_end = ((move > 0) && next_state.IsOnBoundary()) // curvedStep Fix 2022.09.05 JA
-                || (remains <= tiniest_step);
+    // A boundary ends the step once the track has moved in this call, also when the last chord reached it after a
+    // zero move, as a chord after a refined arc can that ended on the surface (curvedStep Fix 2022.09.05 JA: a zero
+    // move at the start of the call does not end the step).
+    found_end = ((stepDone > 0) && next_state.IsOnBoundary()) || (remains <= tiniest_step);
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose)
       printf("| stepDone %g remains %g foundEnd = %d chordIters %d point {%.8f, %.8f, %.8f} dir {%.8f, %.8f, "
