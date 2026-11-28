@@ -31,10 +31,13 @@ void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
+void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &);
+void FreeVolAuxArrayOnDevice(adeptint::VolAuxData *auxDataDev);
+void SynchronizeDevice();
 std::thread LaunchGPUWorker(int, int, int, adept::transport::TrackBuffer &, adept::transport::GPUstate &,
                             std::vector<std::atomic<adept::transport::EventState>> &, std::condition_variable &, int,
                             int, TransportKernelOptions, adept::SteppingActionParamsT, unsigned short, const double,
-                            bool);
+                            const std::atomic<bool> &);
 std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int stepCapacity, int numThreads, adept::transport::TrackBuffer &trackBuffer,
     double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
@@ -258,6 +261,51 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
                                                          fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
                                                          fKernelOptions, fSteppingActionParams, fLastNParticlesOnCPU,
                                                          fStepBufferSafetyFactor, fHasWDTRegions);
+}
+
+void AdePTTransport::ReloadPhysics(std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+                                   std::unique_ptr<adeptint::VolAuxData[]> auxData,
+                                   const adeptint::WDTHostPacked &wdtPacked)
+{
+  if (!adeptG4HepEmState || !auxData) {
+    throw std::runtime_error("AdePTTransport::ReloadPhysics: missing G4HepEm state or VolAuxData.");
+  }
+  for (const auto &eventState : fEventStates) {
+    if (eventState.load(std::memory_order_acquire) != EventState::DeviceFlushed) {
+      throw std::runtime_error("AdePTTransport::ReloadPhysics: called while events are in flight on the GPU.");
+    }
+  }
+
+  // The GPU worker is idle (no event in flight), but kernels of the last iteration may still be queued
+  adept::transport::detail::SynchronizeDevice();
+
+  // G4HepEm tables: upload the new ones and point the constant-memory views to them, then release the old
+  // host tables and their device mirrors (owned by the old state)
+  adept::transport::detail::UploadG4HepEmToGPU(adeptG4HepEmState->GetData(), adeptG4HepEmState->GetParameters());
+  fAdePTG4HepEmState = std::move(adeptG4HepEmState);
+
+  // VolAuxData: the material-cuts indices refer to the new tables
+  auto &volAuxArray    = adeptint::VolAuxArray::GetInstance();
+  auto *oldAuxDev      = volAuxArray.fAuxData_dev;
+  fVolAuxData          = std::move(auxData);
+  volAuxArray.fAuxData = fVolAuxData.get();
+  adept::transport::InitVolAuxArray(volAuxArray);
+  adept::transport::detail::FreeVolAuxArrayOnDevice(oldAuxDev);
+
+  // Woodcock tracking metadata (root couples are material-cuts indices too)
+#ifdef ADEPT_ENABLE_WDT
+  adept::transport::detail::FreeWDTOnDevice(fWDTDev);
+  adept::transport::detail::InitWDTOnDevice(wdtPacked, fWDTDev, fMaxWDTIter);
+  fHasWDTRegions = !wdtPacked.regions.empty();
+#else
+  if (!wdtPacked.regions.empty()) {
+    std::cout << "=== AdePTTransport: Woodcock tracking is disabled in this build; ignoring "
+              << wdtPacked.regions.size() << " configured WDT region(s)\n";
+  }
+#endif
+
+  adept::transport::detail::SynchronizeDevice();
+  std::cout << "=== AdePTTransport: physics data reloaded on the device\n";
 }
 
 void AdePTTransport::InitBVH()

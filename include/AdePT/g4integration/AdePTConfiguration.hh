@@ -48,6 +48,20 @@ public:
   }
   void LockTransportInitializationOptions() { sTransportInitializationOptionsLocked = true; }
   bool TransportInitializationOptionsAreLocked() const { return sTransportInitializationOptionsLocked; }
+
+  /// @brief G4HepEm options changed with a UI command after `/run/initialize`.
+  /// @details The physics constructor copies these options into the G4HepEm configuration in ConstructProcess, so a
+  /// later change would be ignored. The messenger marks them here and asks Geant4 to rebuild the physics tables;
+  /// the tracking managers then copy the marked options into their G4HepEm configuration before the rebuild, and
+  /// the shared transport uploads the new parameters and tables to the device.
+  struct HepEmOptionsChangedAfterInit {
+    bool energyLossFluctuation{false};
+    bool multipleStepsInMSCWithTransportation{false};
+    bool wdtKineticEnergyLimit{false};
+    bool wdtRegions{false};
+  };
+  HepEmOptionsChangedAfterInit &GetHepEmOptionsChangedAfterInit() { return fHepEmOptionsChangedAfterInit; }
+  const HepEmOptionsChangedAfterInit &GetHepEmOptionsChangedAfterInit() const { return fHepEmOptionsChangedAfterInit; }
   // Keep the old names for source compatibility.
   void LockReturnStepOptions() { LockTransportInitializationOptions(); }
   bool ReturnStepOptionsAreLocked() const { return TransportInitializationOptionsAreLocked(); }
@@ -167,6 +181,7 @@ private:
   unsigned short fMaxWDTIter{5};
   unsigned short fMaxChargedLooperCount{500};
   double fWDTKineticEnergyLimit{0.2}; // 200 keV
+  HepEmOptionsChangedAfterInit fHepEmOptionsChangedAfterInit{};
 
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};

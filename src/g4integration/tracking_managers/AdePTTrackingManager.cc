@@ -15,6 +15,7 @@
 #include "G4MTRunManager.hh"
 #include "G4TransportationManager.hh"
 #include "G4EmParameters.hh"
+#include <G4HepEmConfig.hh>
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
@@ -23,6 +24,7 @@
 #include <VecGeom/management/GeoManager.h>
 
 #include <algorithm>
+#include <mutex>
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
@@ -175,6 +177,24 @@ AdePTTrackingManager::~AdePTTrackingManager()
 #endif
 }
 
+AdePTTrackingManager::PhysicsInputs AdePTTrackingManager::PreparePhysicsInputs(bool checkGeometry)
+{
+  PhysicsInputs inputs;
+  inputs.hepEmState = std::make_unique<adept::transport::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
+
+  // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
+  if (checkGeometry) AdePTGeometryBridge::CheckGeometry(inputs.hepEmState->GetData());
+
+  // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
+  inputs.auxData =
+      std::make_unique<adeptint::VolAuxData[]>(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+  adeptint::WDTHostRaw wdtRaw;
+  AdePTGeometryBridge::InitVolAuxData(inputs.auxData.get(), inputs.hepEmState->GetData(), fHepEmTrackingManager.get(),
+                                      fGPURegions, fAdePTConfiguration->GetCMSSteppingActionConfig(), wdtRaw);
+  inputs.wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
+  return inputs;
+}
+
 void AdePTTrackingManager::InitializeSharedAdePTTransport()
 {
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -184,21 +204,33 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   fAdePTConfiguration->LockTransportInitializationOptions();
 
   const auto uniformFieldValues = fGeant4Integration.GetUniformField();
-  auto adeptG4HepEmState = std::make_unique<adept::transport::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
+  auto inputs                   = PreparePhysicsInputs(/*checkGeometry=*/true);
+  auto transportConfig          = MakeAdePTTransportConfig(*fAdePTConfiguration);
 
-  // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
-  AdePTGeometryBridge::CheckGeometry(adeptG4HepEmState->GetData());
+  fAdeptTransport = GetSharedAdePTTransport(transportConfig, std::move(inputs.hepEmState), std::move(inputs.auxData),
+                                            inputs.wdtPacked, uniformFieldValues);
+}
 
-  // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
-  auto auxData = std::make_unique<adeptint::VolAuxData[]>(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
-  adeptint::WDTHostRaw wdtRaw;
-  AdePTGeometryBridge::InitVolAuxData(auxData.get(), adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
-                                      fGPURegions, fAdePTConfiguration->GetCMSSteppingActionConfig(), wdtRaw);
-  adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
-  auto transportConfig              = MakeAdePTTransportConfig(*fAdePTConfiguration);
+namespace {
+// Physics generation of the shared transport: incremented by every reload of its physics data.
+std::mutex gPhysicsReloadMutex;
+unsigned int gPhysicsGeneration = 0;
+} // namespace
 
-  fAdeptTransport = GetSharedAdePTTransport(transportConfig, std::move(adeptG4HepEmState), std::move(auxData),
-                                            wdtPacked, uniformFieldValues);
+void AdePTTrackingManager::ReloadSharedAdePTPhysics()
+{
+  // All workers rebuild their tables for the same Geant4 rebuild: the first one reloads the transport while
+  // holding the mutex, the others wait on it and find the generation already advanced. Workers that start
+  // their events early only do so after the reload, as they also pass through here first.
+  std::lock_guard<std::mutex> lock(gPhysicsReloadMutex);
+  if (fPhysicsGeneration == gPhysicsGeneration) {
+    std::cout << "=== AdePT: Geant4 rebuilt the physics tables (e.g. new production cuts): "
+              << "reloading the G4HepEm data, VolAuxData and WDT data on the device\n";
+    auto inputs = PreparePhysicsInputs(/*checkGeometry=*/false);
+    fAdeptTransport->ReloadPhysics(std::move(inputs.hepEmState), std::move(inputs.auxData), inputs.wdtPacked);
+    ++gPhysicsGeneration;
+  }
+  fPhysicsGeneration = gPhysicsGeneration;
 }
 
 void AdePTTrackingManager::InitializeGPURegions()
@@ -388,6 +420,10 @@ void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 
   if (!fAdePTInitialized) {
     InitializeAdePT();
+  } else if (fPendingPhysicsBuilds > 0 && --fPendingPhysicsBuilds == 0) {
+    // Tables rebuilt after the initialization: reload once G4HepEm has rebuilt the tables of all its particles,
+    // including the Woodcock tracking helper, which it builds with the gamma tables
+    ReloadSharedAdePTPhysics();
   }
 
   // For tracking on GPU by AdePT
@@ -398,9 +434,35 @@ void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 {
   // Prepare PhysicsTable for G4HepEm
+  // G4HepEm options changed by UI commands after /run/initialize (on the CPU they apply from this rebuild on)
+  ApplyHepEmOptionsChangedAfterInit();
+
   fHepEmTrackingManager->PreparePhysicsTable(part);
 
-  // For tracking on GPU by AdePT
+  // For tracking on GPU by AdePT: Geant4 prepares and builds the tables again when they were modified after the
+  // initialization; the GPU copies are then replaced in BuildPhysicsTable
+  if (fAdePTInitialized) ++fPendingPhysicsBuilds;
+}
+
+void AdePTTrackingManager::ApplyHepEmOptionsChangedAfterInit()
+{
+  // Only the options changed after /run/initialize: the others were set by the physics constructor, which may
+  // take them from Geant4 instead of AdePTConfiguration
+  const auto &changed = fAdePTConfiguration->GetHepEmOptionsChangedAfterInit();
+  auto *hepEmConfig   = fHepEmTrackingManager->GetConfig();
+  if (changed.energyLossFluctuation) {
+    hepEmConfig->SetEnergyLossFluctuation(fAdePTConfiguration->GetEnergyLossFluctuation());
+  }
+  if (changed.multipleStepsInMSCWithTransportation) {
+    hepEmConfig->SetMultipleStepsInMSCWithTransportation(
+        fAdePTConfiguration->GetMultipleStepsInMSCWithTransportation());
+  }
+  if (changed.wdtKineticEnergyLimit) hepEmConfig->SetWDTEnergyLimit(fAdePTConfiguration->GetWDTKineticEnergyLimit());
+  if (changed.wdtRegions) {
+    for (const auto &regionName : fAdePTConfiguration->GetWDTRegionNames()) {
+      hepEmConfig->SetWoodcockTrackingRegion(regionName);
+    }
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
